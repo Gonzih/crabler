@@ -17,11 +17,6 @@ pub fn web_scraper_derive(input: TokenStream) -> TokenStream {
     }
 }
 
-struct OnHtmlMeta {
-    selector: String,
-    handler: String,
-}
-
 fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
 

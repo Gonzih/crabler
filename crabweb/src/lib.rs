@@ -4,7 +4,8 @@ use std::error;
 use async_std::sync::RwLock;
 use async_std::sync::{channel, Sender, Receiver};
 use std::sync::Arc;
-// use std::future::Future;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 pub use async_trait::async_trait;
 
 const DEFAULT_BUFFER_SIZE: usize = 1000;
@@ -20,14 +21,16 @@ pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 pub struct Request {
     pub url: String,
     navigate_tx: Sender<String>,
+    counter: Arc<AtomicUsize>,
 }
 
 impl Request {
-    fn new(url: String, navigate_tx: Sender<String>) -> Self {
-        Request { url, navigate_tx }
+    fn new(url: String, navigate_tx: Sender<String>, counter: Arc<AtomicUsize>) -> Self {
+        Request { url, navigate_tx, counter }
     }
 
     pub async fn navigate(&mut self, url: String) -> Result<()> {
+        self.counter.fetch_add(1, Ordering::SeqCst);
         self.navigate_tx.send(url).await;
 
         Ok(())
@@ -54,16 +57,8 @@ pub struct CrabWeb<T>
     navigate_ch: Channels<String>,
     markup_ch: Channels<MarkupPayload>,
     scraper: T,
+    counter: Arc<AtomicUsize>,
 }
-
-// async fn document_from_url(url: String) -> Result<Document> {
-//     let markup = reqwest::get(&url)
-//         .await?
-//         .text()
-//         .await?;
-
-//     Ok(Document::from(markup))
-// }
 
 impl<T> CrabWeb<T>
     where T: WebScraper {
@@ -72,16 +67,19 @@ impl<T> CrabWeb<T>
         let visited_links = Arc::new(RwLock::new(HashSet::new()));
         let navigate_ch = Channels::new();
         let markup_ch = Channels::new();
+        let counter = Arc::new(AtomicUsize::new(0));
 
         CrabWeb {
             visited_links,
             navigate_ch,
             markup_ch,
             scraper,
+            counter,
         }
     }
 
     pub async fn navigate(&mut self, url: &str) -> Result<()> {
+        self.counter.fetch_add(1, Ordering::SeqCst);
         Ok(self.navigate_ch.tx.send(url.to_string()).await)
     }
 
@@ -94,11 +92,19 @@ impl<T> CrabWeb<T>
 
                 for selector in self.scraper.all_html_selectors() {
                     for el in document.select(selector) {
-                        let request = Request::new(url.clone(), self.navigate_ch.tx.clone());
+                        let request = Request::new(url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
                         self.scraper.dispatch_on_html(selector, request, el).await?;
                     }
                 }
 
+                self.counter.fetch_sub(1, Ordering::SeqCst);
+
+                let c = self.counter.load(Ordering::SeqCst);
+                if self.counter.load(Ordering::SeqCst) == 0 {
+                    break
+                } else {
+                    println!("c = {}", c);
+                }
             } else {
                 break;
             }
@@ -107,12 +113,13 @@ impl<T> CrabWeb<T>
         Ok(())
     }
 
-    pub fn new_worker(&self) -> Worker {
+    pub fn start_worker(&self) {
         let visited_links = self.visited_links.clone();
         let navigate_rx = self.navigate_ch.rx.clone();
         let markup_tx = self.markup_ch.tx.clone();
 
-        Worker::new(visited_links, navigate_rx, markup_tx)
+        let worker = Worker::new(visited_links, navigate_rx, markup_tx);
+        tokio::spawn(async move { worker.start().await.expect("Error running worker"); });
     }
 }
 
@@ -142,7 +149,6 @@ impl Worker {
                     let response = reqwest::get(&url).await?;
                     let url = response.url().to_string();
                     let text = response.text().await?;
-                    println!("Reporting results of {}", url.clone());
                     let payload = MarkupPayload::new(url, text);
                     markup_tx.send(payload).await;
                 }
