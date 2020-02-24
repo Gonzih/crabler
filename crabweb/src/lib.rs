@@ -159,10 +159,7 @@ impl Worker {
                     self.visited_links.write().await.insert(url.clone());
 
                     let response = reqwest::get(&url).await?;
-                    let url = response.url().to_string();
-                    let status = response.status().as_u16();
-                    let text = response.text().await?;
-                    let payload = MarkupPayload::new(status, url, text);
+                    let payload = markup_payload_from_response(response).await?;
                     markup_tx.send(payload).await;
                 }
             } else {
@@ -180,8 +177,10 @@ struct MarkupPayload {
     status: u16,
 }
 
-impl MarkupPayload {
-    fn new(status: u16, url: String, text: String) -> Self {
-        Self { status, url, text }
-    }
+async fn markup_payload_from_response(response: reqwest::Response) -> Result<MarkupPayload> {
+    let url = response.url().to_string();
+    let status = response.status().as_u16();
+    let text = response.text().await?;
+
+    Ok(MarkupPayload { status, url, text })
 }
