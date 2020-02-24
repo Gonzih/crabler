@@ -28,7 +28,6 @@
 //!
 //!
 //!async fn run(scraper: Scraper) -> Result<()> {
-//!
 //!    let mut crabweb = Crabler::new(scraper);
 //!
 //!    // Queue navigation task
