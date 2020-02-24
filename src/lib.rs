@@ -112,7 +112,7 @@ impl Response {
         }
     }
 
-    /// Schedule scraper to visit given url
+    /// Schedule scraper to visit given url,
     /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: String) -> Result<()> {
         self.counter.fetch_add(1, Ordering::SeqCst);
@@ -175,7 +175,7 @@ where
         }
     }
 
-    /// Schedule scraper to visit given url
+    /// Schedule scraper to visit given url,
     /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: &str) -> Result<()> {
         self.counter.fetch_add(1, Ordering::SeqCst);
