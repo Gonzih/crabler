@@ -1,18 +1,24 @@
-pub use crabquery::{Element, Document};
-use std::collections::{HashSet};
-use std::error;
 use async_std::sync::RwLock;
-use async_std::sync::{channel, Sender, Receiver};
-use std::sync::Arc;
+use async_std::sync::{channel, Receiver, Sender};
+pub use crabquery::{Document, Element};
+use std::collections::HashSet;
+use std::error;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 pub use async_trait::async_trait;
+pub use crabweb_derive::WebScraper;
 
 const DEFAULT_BUFFER_SIZE: usize = 10000;
 
 #[async_trait(?Send)]
 pub trait WebScraper {
-    async fn dispatch_on_html(&mut self, selector: &'static str, response: Response, element: Element) -> Result<()>;
+    async fn dispatch_on_html(
+        &mut self,
+        selector: &'static str,
+        response: Response,
+        element: Element,
+    ) -> Result<()>;
     async fn dispatch_on_response(&mut self, response: Response) -> Result<()>;
     fn all_html_selectors(&self) -> Vec<&'static str>;
 }
@@ -27,8 +33,18 @@ pub struct Response {
 }
 
 impl Response {
-    fn new(status: u16, url: String, navigate_tx: Sender<String>, counter: Arc<AtomicUsize>) -> Self {
-        Response { status, url, navigate_tx, counter }
+    fn new(
+        status: u16,
+        url: String,
+        navigate_tx: Sender<String>,
+        counter: Arc<AtomicUsize>,
+    ) -> Self {
+        Response {
+            status,
+            url,
+            navigate_tx,
+            counter,
+        }
     }
 
     pub async fn navigate(&mut self, url: String) -> Result<()> {
@@ -54,7 +70,9 @@ impl<T> Channels<T> {
 }
 
 pub struct CrabWeb<T>
-    where T: WebScraper {
+where
+    T: WebScraper,
+{
     visited_links: Arc<RwLock<HashSet<String>>>,
     navigate_ch: Channels<String>,
     markup_ch: Channels<MarkupPayload>,
@@ -63,8 +81,9 @@ pub struct CrabWeb<T>
 }
 
 impl<T> CrabWeb<T>
-    where T: WebScraper {
-
+where
+    T: WebScraper,
+{
     pub fn new(scraper: T) -> Self {
         let visited_links = Arc::new(RwLock::new(HashSet::new()));
         let navigate_ch = Channels::new();
@@ -92,20 +111,32 @@ impl<T> CrabWeb<T>
                 let MarkupPayload { text, url, status } = payload;
                 let document = Document::from(text);
 
-                let response = Response::new(status, url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
+                let response = Response::new(
+                    status,
+                    url.clone(),
+                    self.navigate_ch.tx.clone(),
+                    self.counter.clone(),
+                );
                 self.scraper.dispatch_on_response(response).await?;
 
                 for selector in self.scraper.all_html_selectors() {
                     for el in document.select(selector) {
-                        let response = Response::new(status, url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
-                        self.scraper.dispatch_on_html(selector, response, el).await?;
+                        let response = Response::new(
+                            status,
+                            url.clone(),
+                            self.navigate_ch.tx.clone(),
+                            self.counter.clone(),
+                        );
+                        self.scraper
+                            .dispatch_on_html(selector, response, el)
+                            .await?;
                     }
                 }
 
                 self.counter.fetch_sub(1, Ordering::SeqCst);
 
                 if self.counter.load(Ordering::SeqCst) == 0 {
-                    break
+                    break;
                 }
             } else {
                 break;
@@ -142,8 +173,16 @@ pub struct Worker {
 }
 
 impl Worker {
-    fn new(visited_links: Arc<RwLock<HashSet<String>>>, navigate_rx: Receiver<String>, markup_tx: Sender<MarkupPayload>) -> Self {
-        Worker { visited_links, navigate_rx, markup_tx }
+    fn new(
+        visited_links: Arc<RwLock<HashSet<String>>>,
+        navigate_rx: Receiver<String>,
+        markup_tx: Sender<MarkupPayload>,
+    ) -> Self {
+        Worker {
+            visited_links,
+            navigate_rx,
+            markup_tx,
+        }
     }
 
     pub async fn start(&self) -> Result<()> {
