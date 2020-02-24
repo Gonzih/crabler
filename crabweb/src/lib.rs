@@ -1,14 +1,21 @@
 pub use crabquery::{Element, Document};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashSet};
 use std::error;
 use async_std::sync::RwLock;
 use async_std::sync::{channel, Sender, Receiver};
 use std::sync::Arc;
-use std::future::Future;
+// use std::future::Future;
+pub use async_trait::async_trait;
 
 const DEFAULT_BUFFER_SIZE: usize = 1000;
 
-type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
+#[async_trait(?Send)]
+pub trait WebScraper {
+    async fn dispatch_on_html(&self, selector: &'static str, request: Request, element: Element) -> Result<()>;
+    fn all_html_selectors(&self) -> Vec<&'static str>;
+}
+
+pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
 pub struct Request {
     pub url: String,
@@ -41,14 +48,12 @@ impl<T> Channels<T> {
     }
 }
 
-pub struct CrabWeb<Fut, F>
-    where Fut: Future<Output=Result<()>>,
-          F: Fn(Request, Element) -> Fut {
-
+pub struct CrabWeb<T>
+    where T: WebScraper {
     visited_links: Arc<RwLock<HashSet<String>>>,
-    on_html_callbacks: HashMap<&'static str, F>,
     navigate_ch: Channels<String>,
     markup_ch: Channels<MarkupPayload>,
+    scraper: T,
 }
 
 // async fn document_from_url(url: String) -> Result<Document> {
@@ -60,26 +65,20 @@ pub struct CrabWeb<Fut, F>
 //     Ok(Document::from(markup))
 // }
 
-impl<Fut, F> CrabWeb<Fut, F>
-    where Fut: Future<Output=Result<()>>,
-          F: Fn(Request, Element) -> Fut {
+impl<T> CrabWeb<T>
+    where T: WebScraper {
 
-    pub fn new() -> Self {
+    pub fn new(scraper: T) -> Self {
         let visited_links = Arc::new(RwLock::new(HashSet::new()));
-        let on_html_callbacks = HashMap::new();
         let navigate_ch = Channels::new();
         let markup_ch = Channels::new();
 
         CrabWeb {
             visited_links,
-            on_html_callbacks,
             navigate_ch,
             markup_ch,
+            scraper,
         }
-    }
-
-    pub async fn on_html(&mut self, selector: &'static str, f: F) {
-        self.on_html_callbacks.insert(selector, f);
     }
 
     pub async fn navigate(&mut self, url: &str) -> Result<()> {
@@ -93,10 +92,10 @@ impl<Fut, F> CrabWeb<Fut, F>
                 let MarkupPayload { text, url } = payload;
                 let document = Document::from(text);
 
-                for (selector, callback) in self.on_html_callbacks.iter() {
+                for selector in self.scraper.all_html_selectors() {
                     for el in document.select(selector) {
                         let request = Request::new(url.clone(), self.navigate_ch.tx.clone());
-                        callback(request, el).await?;
+                        self.scraper.dispatch_on_html(selector, request, el).await?;
                     }
                 }
 
