@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub use async_trait::async_trait;
 
-const DEFAULT_BUFFER_SIZE: usize = 1000;
+const DEFAULT_BUFFER_SIZE: usize = 10000;
 
 #[async_trait(?Send)]
 pub trait WebScraper {
@@ -99,11 +99,8 @@ impl<T> CrabWeb<T>
 
                 self.counter.fetch_sub(1, Ordering::SeqCst);
 
-                let c = self.counter.load(Ordering::SeqCst);
                 if self.counter.load(Ordering::SeqCst) == 0 {
                     break
-                } else {
-                    println!("c = {}", c);
                 }
             } else {
                 break;
@@ -119,7 +116,17 @@ impl<T> CrabWeb<T>
         let markup_tx = self.markup_ch.tx.clone();
 
         let worker = Worker::new(visited_links, navigate_rx, markup_tx);
-        tokio::spawn(async move { worker.start().await.expect("Error running worker"); });
+
+        tokio::spawn(async move {
+            loop {
+                println!("🐿️ Starting http worker");
+
+                match worker.start().await {
+                    Ok(()) => break,
+                    Err(e) => println!("❌ Restarting worker: {}", e),
+                }
+            }
+        });
     }
 }
 
