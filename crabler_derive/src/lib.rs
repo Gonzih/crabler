@@ -10,9 +10,9 @@ use syn::{parse_macro_input, DeriveInput};
 #[proc_macro_error]
 /// Macro to derive WebScraper trait on to a given struct.
 /// Supported options:
-/// * #[on_html("css selector", method_name)] - will bind given css selector to a method. When page
+/// * `#[on_html("css selector", method_name)]` - will bind given css selector to a method. When page
 /// is loaded this method will be invoked for all elements that match given selector.
-/// * #[on_response(method_name)] - will bind given method to a successful page load action.
+/// * `#[on_response(method_name)]` - will bind given method to a successful page load action.
 pub fn web_scraper_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = parse_macro_input!(input as DeriveInput);
 
