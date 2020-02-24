@@ -14,4 +14,3 @@ async-trait = "0.1.24"
 crabweb_derive = { path = "./crabweb_derive" }
 
 [dev-dependencies]
-tokio = { version = "0.2.11", features = ["full"] }

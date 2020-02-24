@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::error;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use tokio::fs::File;
-use tokio::prelude::*;
+use async_std::fs::File;
+use async_std::prelude::*;
 
 pub use async_trait::async_trait;
 pub use crabweb_derive::WebScraper;
@@ -125,17 +125,14 @@ where
         loop {
             let output = self.workoutput_ch.rx.recv().await;
             if let Some(output) = output {
+                let response_url;
+                let response_status;
+
                 match output {
                     WorkOutput::Markup { text, url, status } => {
                         let document = Document::from(text);
-
-                        let response = Response::new(
-                            status,
-                            url.clone(),
-                            self.workload_ch.tx.clone(),
-                            self.counter.clone(),
-                        );
-                        self.scraper.dispatch_on_response(response).await?;
+                        response_url = url.clone();
+                        response_status = status;
 
                         for selector in self.scraper.all_html_selectors() {
                             for el in document.select(selector) {
@@ -152,8 +149,23 @@ where
                         }
 
                     },
-                    WorkOutput::Download(_) => (),
+                    WorkOutput::Download(url) => {
+                        response_url = url;
+                        response_status = 200;
+                    },
+                    WorkOutput::Noop(url) => {
+                        response_url = url;
+                        response_status = 304;
+                    },
                 }
+
+                let response = Response::new(
+                    response_status,
+                    response_url,
+                    self.workload_ch.tx.clone(),
+                    self.counter.clone(),
+                );
+                self.scraper.dispatch_on_response(response).await?;
 
                 self.counter.fetch_sub(1, Ordering::SeqCst);
 
@@ -217,18 +229,24 @@ impl Worker {
 
                 match workload {
                     Workload::Navigate(url) => {
+                        // println!("Got navigate job for {}", url);
                         let contains = visited_links.read().await.contains(&url.clone());
+                        let payload;
 
                         if !contains {
                             self.visited_links.write().await.insert(url.clone());
 
                             let response = reqwest::get(&url).await?;
-                            let payload = workoutput_from_response(response).await?;
-                            workoutput_tx.send(payload).await;
+                            payload = workoutput_from_response(response).await?;
+                        } else {
+                            payload = WorkOutput::Noop(url);
                         }
+
+                        workoutput_tx.send(payload).await;
                     },
                     Workload::Download{ url, destination } => {
                         let contains = visited_links.read().await.contains(&url.clone());
+                        let payload;
 
                         if !contains {
                             // need to notify parent about work being done
@@ -236,9 +254,12 @@ impl Worker {
                             let mut dest = File::create(destination.clone()).await?;
                             dest.write_all(&response).await?;
 
-                            let payload = WorkOutput::Download(destination);
-                            workoutput_tx.send(payload).await;
+                            payload = WorkOutput::Download(destination);
+                        } else {
+                            payload = WorkOutput::Noop(url);
                         }
+
+                        workoutput_tx.send(payload).await;
                     },
                 }
             } else {
@@ -257,6 +278,7 @@ enum WorkOutput {
         status: u16,
     },
     Download(String),
+    Noop(String),
 }
 
 async fn workoutput_from_response(response: reqwest::Response) -> Result<WorkOutput> {
