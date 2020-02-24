@@ -12,8 +12,8 @@ const DEFAULT_BUFFER_SIZE: usize = 10000;
 
 #[async_trait(?Send)]
 pub trait WebScraper {
-    async fn dispatch_on_html(&mut self, selector: &'static str, request: Response, element: Element) -> Result<()>;
-    async fn dispatch_on_response(&mut self, request: Response) -> Result<()>;
+    async fn dispatch_on_html(&mut self, selector: &'static str, response: Response, element: Element) -> Result<()>;
+    async fn dispatch_on_response(&mut self, response: Response) -> Result<()>;
     fn all_html_selectors(&self) -> Vec<&'static str>;
 }
 
@@ -21,13 +21,14 @@ pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
 pub struct Response {
     pub url: String,
+    pub status: u16,
     navigate_tx: Sender<String>,
     counter: Arc<AtomicUsize>,
 }
 
 impl Response {
-    fn new(url: String, navigate_tx: Sender<String>, counter: Arc<AtomicUsize>) -> Self {
-        Response { url, navigate_tx, counter }
+    fn new(status: u16, url: String, navigate_tx: Sender<String>, counter: Arc<AtomicUsize>) -> Self {
+        Response { status, url, navigate_tx, counter }
     }
 
     pub async fn navigate(&mut self, url: String) -> Result<()> {
@@ -88,16 +89,16 @@ impl<T> CrabWeb<T>
         loop {
             let payload = self.markup_ch.rx.recv().await;
             if let Some(payload) = payload {
-                let MarkupPayload { text, url } = payload;
+                let MarkupPayload { text, url, status } = payload;
                 let document = Document::from(text);
 
-                let request = Response::new(url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
-                self.scraper.dispatch_on_response(request).await?;
+                let response = Response::new(status, url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
+                self.scraper.dispatch_on_response(response).await?;
 
                 for selector in self.scraper.all_html_selectors() {
                     for el in document.select(selector) {
-                        let request = Response::new(url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
-                        self.scraper.dispatch_on_html(selector, request, el).await?;
+                        let response = Response::new(status, url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
+                        self.scraper.dispatch_on_html(selector, response, el).await?;
                     }
                 }
 
@@ -159,8 +160,9 @@ impl Worker {
 
                     let response = reqwest::get(&url).await?;
                     let url = response.url().to_string();
+                    let status = response.status().as_u16();
                     let text = response.text().await?;
-                    let payload = MarkupPayload::new(url, text);
+                    let payload = MarkupPayload::new(status, url, text);
                     markup_tx.send(payload).await;
                 }
             } else {
@@ -175,10 +177,11 @@ impl Worker {
 struct MarkupPayload {
     url: String,
     text: String,
+    status: u16,
 }
 
 impl MarkupPayload {
-    fn new(url: String, text: String) -> Self {
-        Self { url, text }
+    fn new(status: u16, url: String, text: String) -> Self {
+        Self { status, url, text }
     }
 }
