@@ -12,7 +12,7 @@ keywords = ["html", "css" , "scraper", "web"]
 license-file = "LICENSE"
 
 [dependencies]
-crabler = "0.1.3"
+crabquery = "0.1.3"
 reqwest = { version = "0.10", features = [] }
 async-std = { version = "1.5.0", features = ["unstable"] }
 tokio = { version = "0.2.11", features = ["full"] }
