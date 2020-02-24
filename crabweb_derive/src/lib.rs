@@ -24,8 +24,6 @@ struct OnHtmlMeta {
 
 fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
-    // eprintln!("{}", name);
-    // eprintln!("{:#?}", &ast);
 
     let mut selectors = vec![];
     let mut matches = vec![];
@@ -35,9 +33,10 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
 
         match meta {
             Ok(attr) => {
-                let (selector, match_clause) = handle_on_html_attr(attr);
-                selectors.push(selector);
-                matches.push(match_clause);
+                if let Some((selector, match_clause)) = handle_attr(attr) {
+                    selectors.push(selector);
+                    matches.push(match_clause);
+                }
             }
             Err(err) => {
                 abort_call_site!("Error parsing #[on_html] attribute: {}\ncorrect format is #[on_html(\"div > a\", handler_method)]", err);
@@ -48,8 +47,12 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
     let gen = quote! {
         #[async_trait(?Send)]
         impl WebScraper for #name {
-            async fn dispatch_on_html(&self, selector: &'static str, request: Request, element: Element) -> std::result::Result<(), Box<dyn std::error::Error>> {
-                println!("Dispatch {}", stringify!(#name));
+            async fn dispatch_on_html(
+                &self,
+                selector: &'static str,
+                request: Request,
+                element: Element,
+            ) -> std::result::Result<(), Box<dyn std::error::Error>> {
 
                 match selector {
                     #( #matches, )*
@@ -68,7 +71,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
     gen.into()
 }
 
-fn handle_on_html_attr(input: syn::Meta) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+fn handle_attr(input: syn::Meta) -> Option<(proc_macro2::TokenStream, proc_macro2::TokenStream)> {
     use syn::*;
 
     match input {
@@ -77,8 +80,6 @@ fn handle_on_html_attr(input: syn::Meta) -> (proc_macro2::TokenStream, proc_macr
             if l < 2 {
                 abort_call_site!("Not enough argument provided to on_html attribute: {}", l);
             }
-
-            eprintln!("nested has {} el: {:#?}", nested.len(), nested);
 
             let token = match &nested[0] {
                 NestedMeta::Lit(Lit::Str(lit_str)) => lit_str,
@@ -90,15 +91,11 @@ fn handle_on_html_attr(input: syn::Meta) -> (proc_macro2::TokenStream, proc_macr
                 _ => abort_call_site!("Cant find on_html selector"),
             };
 
-            eprintln!("token {:#?}", token);
-            eprintln!("f {:#?}", f);
             let selector = quote! { #token };
             let match_clause = quote! { #token => self.#f(request, element).await? };
 
-            (selector, match_clause)
-
-            // quote! {}
+            Some((selector, match_clause))
         }
-        _ => (quote! {}, quote! {}),
+        _ => None,
     }
 }
