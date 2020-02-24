@@ -18,3 +18,6 @@ test:
 .PHONY: shell
 shell:
 	nix-shell shell.nix
+
+publish:
+	cargo publish
