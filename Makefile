@@ -24,3 +24,6 @@ shell:
 
 rust-setup:
 	rustup default nightly
+
+publish:
+	cargo publish
