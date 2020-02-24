@@ -20,6 +20,6 @@ tokio = { version = "0.2.11", features = ["full"] }
 futures = "0.3.4"
 async-trait = "0.1.24"
 # crabler_derive = { path = "./crabler_derive" }
-crabler_derive = "0.1.0"
+crabler_derive = "0.1.1"
 
 [dev-dependencies]
