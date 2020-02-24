@@ -18,6 +18,8 @@ pub fn web_scraper_derive(input: TokenStream) -> TokenStream {
 }
 
 fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
+    use syn::*;
+
     let name = &ast.ident;
 
     let mut selectors = vec![];
@@ -27,14 +29,18 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
         let meta = attr.parse_meta();
 
         match meta {
-            Ok(attr) => {
-                if let Some((selector, match_clause)) = handle_attr(attr) {
-                    selectors.push(selector);
-                    matches.push(match_clause);
-                }
+            Ok(Meta::List(MetaList { path, nested, .. }))
+                if path.segments[0].ident == "on_html" =>
+            {
+                let (selector, match_clause) = handle_attr(nested);
+                selectors.push(selector);
+                matches.push(match_clause);
             }
             Err(err) => {
                 abort_call_site!("Error parsing #[on_html] attribute: {}\ncorrect format is #[on_html(\"div > a\", handler_method)]", err);
+            }
+            _ => {
+                abort_call_site!("Unsupported arguments on attribute");
             }
         }
     }
@@ -66,31 +72,28 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
     gen.into()
 }
 
-fn handle_attr(input: syn::Meta) -> Option<(proc_macro2::TokenStream, proc_macro2::TokenStream)> {
+fn handle_attr(
+    nested: syn::punctuated::Punctuated<syn::NestedMeta, syn::token::Comma>,
+) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
     use syn::*;
 
-    match input {
-        Meta::List(MetaList { path, nested, .. }) if path.segments[0].ident == "on_html" => {
-            let l = nested.len();
-            if l < 2 {
-                abort_call_site!("Not enough argument provided to on_html attribute: {}", l);
-            }
-
-            let token = match &nested[0] {
-                NestedMeta::Lit(Lit::Str(lit_str)) => lit_str,
-                _ => abort_call_site!("Cant find on_html selector"),
-            };
-
-            let f = match &nested[1] {
-                NestedMeta::Meta(Meta::Path(Path { segments, .. })) => &segments[0].ident,
-                _ => abort_call_site!("Cant find on_html selector"),
-            };
-
-            let selector = quote! { #token };
-            let match_clause = quote! { #token => self.#f(request, element).await? };
-
-            Some((selector, match_clause))
-        }
-        _ => None,
+    let l = nested.len();
+    if l < 2 {
+        abort_call_site!("Not enough argument provided to on_html attribute: {}", l);
     }
+
+    let token = match &nested[0] {
+        NestedMeta::Lit(Lit::Str(lit_str)) => lit_str,
+        _ => abort_call_site!("Cant find on_html selector"),
+    };
+
+    let f = match &nested[1] {
+        NestedMeta::Meta(Meta::Path(Path { segments, .. })) => &segments[0].ident,
+        _ => abort_call_site!("Cant find on_html selector"),
+    };
+
+    let selector = quote! { #token };
+    let match_clause = quote! { #token => self.#f(request, element).await? };
+
+    (selector, match_clause)
 }
