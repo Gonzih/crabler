@@ -29,7 +29,7 @@
 //!
 //!async fn run(scraper: Scraper) -> Result<()> {
 //!
-//!    let mut crabweb = CrabWeb::new(scraper);
+//!    let mut crabweb = Crabler::new(scraper);
 //!
 //!    // Queue navigation task
 //!    crabweb.navigate("https://news.ycombinator.com/").await?;
@@ -144,7 +144,7 @@ impl<T> Channels<T> {
     }
 }
 
-pub struct CrabWeb<T>
+pub struct Crabler<T>
 where
     T: WebScraper,
 {
@@ -155,7 +155,7 @@ where
     counter: Arc<AtomicUsize>,
 }
 
-impl<T> CrabWeb<T>
+impl<T> Crabler<T>
 where
     T: WebScraper,
 {
@@ -166,7 +166,7 @@ where
         let workoutput_ch = Channels::new();
         let counter = Arc::new(AtomicUsize::new(0));
 
-        CrabWeb {
+        Crabler {
             visited_links,
             workload_ch,
             workoutput_ch,

@@ -4,7 +4,7 @@ macro_rules! scraper_setup {
         use tokio::runtime::Runtime;
 
         async fn run_scraper_async(scraper: Scraper) {
-            let mut crabler = CrabWeb::new(scraper);
+            let mut crabler = Crabler::new(scraper);
 
             crabler
                 .navigate("https://news.ycombinator.com/")

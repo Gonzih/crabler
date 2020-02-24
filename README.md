@@ -56,7 +56,7 @@ impl Scraper {
 async fn main() -> Result<()> {
     let scraper = Scraper { };
 
-    let mut crabweb = CrabWeb::new(scraper);
+    let mut crabweb = Crabler::new(scraper);
 
     // Queue navigation task
     crabweb.navigate("https://news.ycombinator.com/").await?;
