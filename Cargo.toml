@@ -9,7 +9,6 @@ repository = "https://github.com/Gonzih/crabler"
 documentation = "https://docs.rs/crabler"
 readme = "README.md"
 keywords = ["html", "css" , "scraper", "web"]
-license = "MIT"
 license-file = "LICENSE"
 
 [dependencies]
@@ -19,6 +18,7 @@ async-std = { version = "1.5.0", features = ["unstable"] }
 tokio = { version = "0.2.11", features = ["full"] }
 futures = "0.3.4"
 async-trait = "0.1.24"
-crabler_derive = { path = "./crabler_derive" }
+# crabler_derive = { path = "./crabler_derive" }
+crabler_derive = "0.1.0"
 
 [dev-dependencies]
