@@ -19,7 +19,9 @@ Structures as asynchronous web crawlers.
 ## Example
 
 ```rust
-use crabweb::*;
+extern crate crabler;
+
+use crabler::*;
 
 #[derive(WebScraper)]
 #[on_response(response_handler)]

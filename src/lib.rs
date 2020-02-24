@@ -1,3 +1,58 @@
+//! Goal of this library is to help crabs with web crawling.
+//!
+//!```rust
+//!extern crate crabler;
+//!
+//!use crabler::*;
+//!use tokio::runtime::Runtime;
+//!
+//!#[derive(WebScraper)]
+//!#[on_response(response_handler)]
+//!#[on_html("a[href]", print_handler)]
+//!struct Scraper {}
+//!
+//!impl Scraper {
+//!    async fn response_handler(&self, response: Response) -> Result<()> {
+//!        println!("Status {}", response.status);
+//!        Ok(())
+//!    }
+//!
+//!    async fn print_handler(&self, response: Response, a: Element) -> Result<()> {
+//!        if let Some(href) = a.attr("href") {
+//!            println!("Found link {} on {}", href, response.url);
+//!        }
+//!
+//!        Ok(())
+//!    }
+//!}
+//!
+//!
+//!async fn run(scraper: Scraper) -> Result<()> {
+//!
+//!    let mut crabweb = CrabWeb::new(scraper);
+//!
+//!    // Queue navigation task
+//!    crabweb.navigate("https://news.ycombinator.com/").await?;
+//!
+//!    // Create bunch of http workers
+//!    for _ in 0..20 {
+//!        crabweb.start_worker();
+//!    }
+//!
+//!    // Run main scraper loop
+//!    crabweb.run().await?;
+//!
+//!    Ok(())
+//!}
+//!
+//!fn main() {
+//!    let scraper = Scraper { };
+//!    let f = run(scraper);
+//!    let mut rt = Runtime::new().unwrap();
+//!    rt.block_on(f);
+//!}
+//!```
+
 use async_std::sync::RwLock;
 use async_std::sync::{channel, Receiver, Sender};
 pub use crabquery::{Document, Element};
