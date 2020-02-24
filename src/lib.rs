@@ -112,6 +112,8 @@ impl Response {
         }
     }
 
+    /// Schedule scraper to visit given url
+    /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: String) -> Result<()> {
         self.counter.fetch_add(1, Ordering::SeqCst);
         self.workload_tx.send(Workload::Navigate(url)).await;
@@ -119,6 +121,7 @@ impl Response {
         Ok(())
     }
 
+    /// Schedule scraper to download file from url into destination path
     pub async fn download_file(&mut self, url: String, destination: String) -> Result<()> {
         self.counter.fetch_add(1, Ordering::SeqCst);
         self.workload_tx.send(Workload::Download{ url, destination }).await;
@@ -156,6 +159,7 @@ impl<T> CrabWeb<T>
 where
     T: WebScraper,
 {
+    /// Create new WebScraper out of given scraper struct
     pub fn new(scraper: T) -> Self {
         let visited_links = Arc::new(RwLock::new(HashSet::new()));
         let workload_ch = Channels::new();
@@ -171,11 +175,14 @@ where
         }
     }
 
+    /// Schedule scraper to visit given url
+    /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: &str) -> Result<()> {
         self.counter.fetch_add(1, Ordering::SeqCst);
         Ok(self.workload_ch.tx.send(Workload::Navigate(url.to_string())).await)
     }
 
+    /// Run processing loop for the given WebScraper
     pub async fn run(&mut self) -> Result<()> {
         loop {
             let output = self.workoutput_ch.rx.recv().await;
@@ -235,6 +242,8 @@ where
         Ok(())
     }
 
+    /// Create and start new worker tasks.
+    /// Worker task will automatically exit after scraper instance is freed.
     pub fn start_worker(&self) {
         let visited_links = self.visited_links.clone();
         let workload_rx = self.workload_ch.rx.clone();
@@ -255,7 +264,7 @@ where
     }
 }
 
-pub struct Worker {
+struct Worker {
     visited_links: Arc<RwLock<HashSet<String>>>,
     workload_rx: Receiver<Workload>,
     workoutput_tx: Sender<WorkOutput>,
@@ -274,7 +283,7 @@ impl Worker {
         }
     }
 
-    pub async fn start(&self) -> Result<()> {
+    async fn start(&self) -> Result<()> {
         let visited_links = self.visited_links.clone();
 
         loop {
