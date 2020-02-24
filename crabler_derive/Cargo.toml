@@ -8,6 +8,7 @@ homepage = "https://github.com/Gonzih/crabler"
 repository = "https://github.com/Gonzih/crabler"
 documentation = "https://docs.rs/crabler_derive"
 keywords = ["html", "css" , "scraper", "web"]
+license = "MIT"
 license-file = "LICENSE"
 
 [lib]
