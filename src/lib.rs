@@ -9,7 +9,7 @@ use async_std::fs::File;
 use async_std::prelude::*;
 
 pub use async_trait::async_trait;
-pub use crabweb_derive::WebScraper;
+pub use crabler_derive::WebScraper;
 
 const DEFAULT_BUFFER_SIZE: usize = 10000;
 
