@@ -13,6 +13,7 @@ const DEFAULT_BUFFER_SIZE: usize = 10000;
 #[async_trait(?Send)]
 pub trait WebScraper {
     async fn dispatch_on_html(&mut self, selector: &'static str, request: Request, element: Element) -> Result<()>;
+    async fn dispatch_on_response(&mut self, request: Request) -> Result<()>;
     fn all_html_selectors(&self) -> Vec<&'static str>;
 }
 
@@ -89,6 +90,9 @@ impl<T> CrabWeb<T>
             if let Some(payload) = payload {
                 let MarkupPayload { text, url } = payload;
                 let document = Document::from(text);
+
+                let request = Request::new(url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
+                self.scraper.dispatch_on_response(request).await?;
 
                 for selector in self.scraper.all_html_selectors() {
                     for el in document.select(selector) {
