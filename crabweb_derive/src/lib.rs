@@ -58,7 +58,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
             async fn dispatch_on_html(
                 &mut self,
                 selector: &'static str,
-                request: Request,
+                request: Response,
                 element: Element,
             ) -> std::result::Result<(), Box<dyn std::error::Error>> {
 
@@ -76,7 +76,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
 
             async fn dispatch_on_response(
                 &mut self,
-                request: Request,
+                request: Response,
             ) -> std::result::Result<(), Box<dyn std::error::Error>> {
                 #( #responses; )*
 

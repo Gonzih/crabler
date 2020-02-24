@@ -12,22 +12,22 @@ const DEFAULT_BUFFER_SIZE: usize = 10000;
 
 #[async_trait(?Send)]
 pub trait WebScraper {
-    async fn dispatch_on_html(&mut self, selector: &'static str, request: Request, element: Element) -> Result<()>;
-    async fn dispatch_on_response(&mut self, request: Request) -> Result<()>;
+    async fn dispatch_on_html(&mut self, selector: &'static str, request: Response, element: Element) -> Result<()>;
+    async fn dispatch_on_response(&mut self, request: Response) -> Result<()>;
     fn all_html_selectors(&self) -> Vec<&'static str>;
 }
 
 pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
-pub struct Request {
+pub struct Response {
     pub url: String,
     navigate_tx: Sender<String>,
     counter: Arc<AtomicUsize>,
 }
 
-impl Request {
+impl Response {
     fn new(url: String, navigate_tx: Sender<String>, counter: Arc<AtomicUsize>) -> Self {
-        Request { url, navigate_tx, counter }
+        Response { url, navigate_tx, counter }
     }
 
     pub async fn navigate(&mut self, url: String) -> Result<()> {
@@ -91,12 +91,12 @@ impl<T> CrabWeb<T>
                 let MarkupPayload { text, url } = payload;
                 let document = Document::from(text);
 
-                let request = Request::new(url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
+                let request = Response::new(url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
                 self.scraper.dispatch_on_response(request).await?;
 
                 for selector in self.scraper.all_html_selectors() {
                     for el in document.select(selector) {
-                        let request = Request::new(url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
+                        let request = Response::new(url.clone(), self.navigate_ch.tx.clone(), self.counter.clone());
                         self.scraper.dispatch_on_html(selector, request, el).await?;
                     }
                 }
