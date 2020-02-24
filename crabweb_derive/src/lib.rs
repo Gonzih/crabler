@@ -43,7 +43,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
         #[async_trait(?Send)]
         impl WebScraper for #name {
             async fn dispatch_on_html(
-                &self,
+                &mut self,
                 selector: &'static str,
                 request: Request,
                 element: Element,

@@ -12,7 +12,7 @@ const DEFAULT_BUFFER_SIZE: usize = 10000;
 
 #[async_trait(?Send)]
 pub trait WebScraper {
-    async fn dispatch_on_html(&self, selector: &'static str, request: Request, element: Element) -> Result<()>;
+    async fn dispatch_on_html(&mut self, selector: &'static str, request: Request, element: Element) -> Result<()>;
     fn all_html_selectors(&self) -> Vec<&'static str>;
 }
 
