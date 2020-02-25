@@ -4,7 +4,6 @@
 //!extern crate crabler;
 //!
 //!use crabler::*;
-//!use tokio::runtime::Runtime;
 //!
 //!#[derive(WebScraper)]
 //!#[on_response(response_handler)]
