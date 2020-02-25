@@ -87,6 +87,24 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
 
                 Ok(())
             }
+
+            async fn run(
+                self,
+                url: &str,
+                threads: usize,
+            ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+                use crabler::Crabler;
+
+                let mut crabler = Crabler::new(self);
+
+                crabler.navigate(url).await?;
+
+                for _ in 0..threads {
+                    crabler.start_worker();
+                }
+
+                crabler.run().await
+            }
         }
     };
 

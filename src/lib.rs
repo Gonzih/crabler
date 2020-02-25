@@ -26,29 +26,12 @@
 //!    }
 //!}
 //!
-//!
-//!async fn run(scraper: Scraper) -> Result<()> {
-//!    let mut crabweb = Crabler::new(scraper);
-//!
-//!    // Queue navigation task
-//!    crabweb.navigate("https://news.ycombinator.com/").await?;
-//!
-//!    // Create bunch of http workers
-//!    for _ in 0..20 {
-//!        crabweb.start_worker();
-//!    }
-//!
-//!    // Run main scraper loop
-//!    crabweb.run().await?;
-//!
-//!    Ok(())
-//!}
-//!
-//!fn main() {
+//!#[tokio::main]
+//!async fn main() -> Result<()> {
 //!    let scraper = Scraper { };
-//!    let f = run(scraper);
-//!    let mut rt = Runtime::new().unwrap();
-//!    rt.block_on(f);
+//!
+//!    // Run scraper starting from given url and using 20 worker threads
+//!    scraper.run("https://news.ycombinator.com/", 20).await
 //!}
 //!```
 
@@ -77,6 +60,7 @@ pub trait WebScraper {
     ) -> Result<()>;
     async fn dispatch_on_response(&mut self, response: Response) -> Result<()>;
     fn all_html_selectors(&self) -> Vec<&'static str>;
+    async fn run(self, url: &str, threads: usize) -> Result<()>;
 }
 
 pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;

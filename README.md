@@ -56,19 +56,7 @@ impl Scraper {
 async fn main() -> Result<()> {
     let scraper = Scraper { };
 
-    let mut crabweb = Crabler::new(scraper);
-
-    // Queue navigation task
-    crabweb.navigate("https://news.ycombinator.com/").await?;
-
-    // Create bunch of http workers
-    for _ in 0..20 {
-        crabweb.start_worker();
-    }
-
-    // Run main scraper loop
-    crabweb.run().await?;
-
-    Ok(())
+    // Run scraper starting from given url and using 20 worker threads
+    scraper.run("https://news.ycombinator.com/", 20).await
 }
 ```
