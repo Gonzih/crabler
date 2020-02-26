@@ -27,12 +27,16 @@
 //!
 //!#[tokio::main]
 //!async fn main() -> Result<()> {
-//!    let scraper = Scraper { };
+//!    let scraper = Scraper {};
 //!
 //!    // Run scraper starting from given url and using 20 worker threads
-//!    scraper.run("https://news.ycombinator.com/", 20).await
+//!    scraper.run(Opts::new().with_urls(vec!["https://news.ycombinator.com/"].with_threads(20))).await
 //!}
 //!```
+
+
+mod opts;
+pub use opts::*;
 
 use async_std::sync::RwLock;
 use async_std::sync::{channel, Receiver, Sender};
@@ -59,7 +63,7 @@ pub trait WebScraper {
     ) -> Result<()>;
     async fn dispatch_on_response(&mut self, response: Response) -> Result<()>;
     fn all_html_selectors(&self) -> Vec<&'static str>;
-    async fn run(self, url: &str, threads: usize) -> Result<()>;
+    async fn run(self, opts: Opts) -> Result<()>;
 }
 
 pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;

@@ -42,7 +42,7 @@ fn test_roundtrip() {
         saw_links: saw_links.clone(),
     };
 
-    execute(scraper, "http://news.ycombinator.com/");
+    execute(scraper, Opts::new().with_urls(vec!["http://news.ycombinator.com/"]));
 
     assert_eq!(visited_links.read().unwrap().len(), 1);
     assert!(saw_links.read().unwrap().len() > 10);

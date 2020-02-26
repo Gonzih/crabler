@@ -1,10 +1,10 @@
 #[allow(unused_macros)]
 macro_rules! scraper_setup {
     ($e:ident) => {
-        fn execute(scraper: Scraper, url: &str) {
+        fn execute(scraper: Scraper, opts: Opts) {
             use tokio::runtime::Runtime;
 
-            let f = scraper.run(url, 1);
+            let f = scraper.run(opts);
             let mut rt = Runtime::new().unwrap();
             rt.block_on(f);
         }
