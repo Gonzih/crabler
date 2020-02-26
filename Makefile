@@ -26,4 +26,4 @@ rust-setup:
 	rustup default nightly
 
 publish:
-	cargo publish
+	nix-shell shell.nix --run 'cargo publish'
