@@ -57,12 +57,12 @@ const DEFAULT_BUFFER_SIZE: usize = 10000;
 pub trait WebScraper {
     async fn dispatch_on_html(
         &mut self,
-        selector: &'static str,
+        selector: &str,
         response: Response,
         element: Element,
     ) -> Result<()>;
     async fn dispatch_on_response(&mut self, response: Response) -> Result<()>;
-    fn all_html_selectors(&self) -> Vec<&'static str>;
+    fn all_html_selectors(&self) -> Vec<&str>;
     async fn run(self, opts: Opts) -> Result<()>;
 }
 
@@ -182,8 +182,13 @@ where
                         response_url = url.clone();
                         response_status = status;
 
-                        for selector in self.scraper.all_html_selectors() {
-                            for el in document.select(selector) {
+                        let selectors = self.scraper.all_html_selectors()
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>();
+
+                        for selector in selectors {
+                            for el in document.select(selector.as_str()) {
                                 let response = Response::new(
                                     status,
                                     url.clone(),
@@ -191,7 +196,7 @@ where
                                     self.counter.clone(),
                                 );
                                 self.scraper
-                                    .dispatch_on_html(selector, response, el)
+                                    .dispatch_on_html(selector.as_str(), response, el)
                                     .await?;
                                 }
                         }

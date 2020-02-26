@@ -62,7 +62,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
         impl WebScraper for #name {
             async fn dispatch_on_html(
                 &mut self,
-                selector: &'static str,
+                selector: &str,
                 request: Response,
                 element: Element,
             ) -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -75,7 +75,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
                 Ok(())
             }
 
-            fn all_html_selectors(&self) -> Vec<&'static str> {
+            fn all_html_selectors(&self) -> Vec<&str> {
                 vec![#( #selectors ),*]
             }
 

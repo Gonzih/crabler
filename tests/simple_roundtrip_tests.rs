@@ -30,10 +30,8 @@ impl Scraper {
     }
 }
 
-scraper_setup!(Scraper);
-
-#[test]
-fn test_roundtrip() {
+#[tokio::test]
+async fn test_roundtrip() {
     let saw_links = arc_rw_lock!(vec![]);
     let visited_links = arc_rw_lock!(vec![]);
 
@@ -42,7 +40,9 @@ fn test_roundtrip() {
         saw_links: saw_links.clone(),
     };
 
-    execute(scraper, Opts::new().with_urls(vec!["http://news.ycombinator.com/"]));
+    scraper
+        .run(Opts::new().with_urls(vec!["http://news.ycombinator.com/"]))
+        .await.unwrap();
 
     assert_eq!(visited_links.read().unwrap().len(), 1);
     assert!(saw_links.read().unwrap().len() > 10);
