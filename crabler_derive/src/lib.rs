@@ -49,7 +49,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
                 responses.push(response);
             }
             Err(err) => {
-                abort_call_site!("Error parsing attribute: {}", err);
+                abort_call_site!("Failed to parse attribute: {}", err);
             }
             _ => {
                 abort_call_site!("Unsupported arguments on attribute");
@@ -65,7 +65,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
                 selector: &str,
                 request: Response,
                 element: Element,
-            ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+            ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
 
                 match selector {
                     #( #matches, )*
@@ -82,7 +82,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
             async fn dispatch_on_response(
                 &mut self,
                 request: Response,
-            ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+            ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
                 #( #responses; )*
 
                 Ok(())
@@ -91,7 +91,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
             async fn run(
                 self,
                 opts: Opts,
-            ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+            ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
                 use crabler::Crabler;
 
                 let mut crabler = Crabler::new(self);

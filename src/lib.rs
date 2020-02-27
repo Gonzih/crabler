@@ -66,7 +66,7 @@ pub trait WebScraper {
     async fn run(self, opts: Opts) -> Result<()>;
 }
 
-pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
+pub type Result<T> = std::result::Result<T, Box<dyn error::Error + Send + Sync + 'static>>;
 
 enum Workload {
     Navigate(String),
