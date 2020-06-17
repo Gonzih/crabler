@@ -34,10 +34,11 @@
 //!}
 //!```
 
-
 mod opts;
 pub use opts::*;
 
+use async_std::fs::File;
+use async_std::prelude::*;
 use async_std::sync::RwLock;
 use async_std::sync::{channel, Receiver, Sender};
 pub use crabquery::{Document, Element};
@@ -45,8 +46,6 @@ use std::collections::HashSet;
 use std::error;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use async_std::fs::File;
-use async_std::prelude::*;
 
 pub use async_trait::async_trait;
 pub use crabler_derive::WebScraper;
@@ -70,10 +69,7 @@ pub type Result<T> = std::result::Result<T, Box<dyn error::Error + Send + Sync +
 
 enum Workload {
     Navigate(String),
-    Download {
-        url: String,
-        destination: String,
-    },
+    Download { url: String, destination: String },
 }
 
 pub struct Response {
@@ -110,7 +106,9 @@ impl Response {
     /// Schedule scraper to download file from url into destination path
     pub async fn download_file(&mut self, url: String, destination: String) -> Result<()> {
         self.counter.fetch_add(1, Ordering::SeqCst);
-        self.workload_tx.send(Workload::Download{ url, destination }).await;
+        self.workload_tx
+            .send(Workload::Download { url, destination })
+            .await;
 
         Ok(())
     }
@@ -165,67 +163,68 @@ where
     /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: &str) -> Result<()> {
         self.counter.fetch_add(1, Ordering::SeqCst);
-        Ok(self.workload_ch.tx.send(Workload::Navigate(url.to_string())).await)
+        Ok(self
+            .workload_ch
+            .tx
+            .send(Workload::Navigate(url.to_string()))
+            .await)
     }
 
     /// Run processing loop for the given WebScraper
     pub async fn run(&mut self) -> Result<()> {
         loop {
-            let output = self.workoutput_ch.rx.recv().await;
-            if let Some(output) = output {
-                let response_url;
-                let response_status;
+            let output = self.workoutput_ch.rx.recv().await?;
+            let response_url;
+            let response_status;
 
-                match output {
-                    WorkOutput::Markup { text, url, status } => {
-                        let document = Document::from(text);
-                        response_url = url.clone();
-                        response_status = status;
+            match output {
+                WorkOutput::Markup { text, url, status } => {
+                    let document = Document::from(text);
+                    response_url = url.clone();
+                    response_status = status;
 
-                        let selectors = self.scraper.all_html_selectors()
-                            .iter()
-                            .map(|s| s.to_string())
-                            .collect::<Vec<_>>();
+                    let selectors = self
+                        .scraper
+                        .all_html_selectors()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>();
 
-                        for selector in selectors {
-                            for el in document.select(selector.as_str()) {
-                                let response = Response::new(
-                                    status,
-                                    url.clone(),
-                                    self.workload_ch.tx.clone(),
-                                    self.counter.clone(),
-                                );
-                                self.scraper
-                                    .dispatch_on_html(selector.as_str(), response, el)
-                                    .await?;
-                                }
+                    for selector in selectors {
+                        for el in document.select(selector.as_str()) {
+                            let response = Response::new(
+                                status,
+                                url.clone(),
+                                self.workload_ch.tx.clone(),
+                                self.counter.clone(),
+                            );
+                            self.scraper
+                                .dispatch_on_html(selector.as_str(), response, el)
+                                .await?;
                         }
-
-                    },
-                    WorkOutput::Download(url) => {
-                        response_url = url;
-                        response_status = 200;
-                    },
-                    WorkOutput::Noop(url) => {
-                        response_url = url;
-                        response_status = 304;
-                    },
+                    }
                 }
-
-                let response = Response::new(
-                    response_status,
-                    response_url,
-                    self.workload_ch.tx.clone(),
-                    self.counter.clone(),
-                );
-                self.scraper.dispatch_on_response(response).await?;
-
-                self.counter.fetch_sub(1, Ordering::SeqCst);
-
-                if self.counter.load(Ordering::SeqCst) == 0 {
-                    break;
+                WorkOutput::Download(url) => {
+                    response_url = url;
+                    response_status = 200;
                 }
-            } else {
+                WorkOutput::Noop(url) => {
+                    response_url = url;
+                    response_status = 304;
+                }
+            }
+
+            let response = Response::new(
+                response_status,
+                response_url,
+                self.workload_ch.tx.clone(),
+                self.counter.clone(),
+            );
+            self.scraper.dispatch_on_response(response).await?;
+
+            self.counter.fetch_sub(1, Ordering::SeqCst);
+
+            if self.counter.load(Ordering::SeqCst) == 0 {
                 break;
             }
         }
@@ -278,51 +277,45 @@ impl Worker {
         let visited_links = self.visited_links.clone();
 
         loop {
-            let workload = self.workload_rx.recv().await;
-            if let Some(workload) = workload {
-                let workoutput_tx = self.workoutput_tx.clone();
+            let workload = self.workload_rx.recv().await?;
+            let workoutput_tx = self.workoutput_tx.clone();
 
-                match workload {
-                    Workload::Navigate(url) => {
-                        // println!("Got navigate job for {}", url);
-                        let contains = visited_links.read().await.contains(&url.clone());
-                        let payload;
+            match workload {
+                Workload::Navigate(url) => {
+                    // println!("Got navigate job for {}", url);
+                    let contains = visited_links.read().await.contains(&url.clone());
+                    let payload;
 
-                        if !contains {
-                            self.visited_links.write().await.insert(url.clone());
+                    if !contains {
+                        self.visited_links.write().await.insert(url.clone());
 
-                            let response = reqwest::get(&url).await?;
-                            payload = workoutput_from_response(response).await?;
-                        } else {
-                            payload = WorkOutput::Noop(url);
-                        }
+                        let response = reqwest::get(&url).await?;
+                        payload = workoutput_from_response(response).await?;
+                    } else {
+                        payload = WorkOutput::Noop(url);
+                    }
 
-                        workoutput_tx.send(payload).await;
-                    },
-                    Workload::Download{ url, destination } => {
-                        let contains = visited_links.read().await.contains(&url.clone());
-                        let payload;
-
-                        if !contains {
-                            // need to notify parent about work being done
-                            let response = reqwest::get(&*url).await?.bytes().await?;
-                            let mut dest = File::create(destination.clone()).await?;
-                            dest.write_all(&response).await?;
-
-                            payload = WorkOutput::Download(destination);
-                        } else {
-                            payload = WorkOutput::Noop(url);
-                        }
-
-                        workoutput_tx.send(payload).await;
-                    },
+                    workoutput_tx.send(payload).await;
                 }
-            } else {
-                break;
+                Workload::Download { url, destination } => {
+                    let contains = visited_links.read().await.contains(&url.clone());
+                    let payload;
+
+                    if !contains {
+                        // need to notify parent about work being done
+                        let response = reqwest::get(&*url).await?.bytes().await?;
+                        let mut dest = File::create(destination.clone()).await?;
+                        dest.write_all(&response).await?;
+
+                        payload = WorkOutput::Download(destination);
+                    } else {
+                        payload = WorkOutput::Noop(url);
+                    }
+
+                    workoutput_tx.send(payload).await;
+                }
             }
         }
-
-        Ok(())
     }
 }
 

@@ -15,9 +15,9 @@ license-file = "LICENSE"
 [dependencies]
 crabquery = "0.1.6"
 reqwest = { version = "0.10", features = [] }
-async-std = { version = "1.5.0", features = ["unstable"] }
+async-std = { version = "1.6.1", features = ["unstable"] }
 tokio = { version = "0.2.11", features = ["full"] }
-futures = "0.3.4"
+futures = "0.3.5"
 async-trait = "0.1.24"
 # crabler_derive = { path = "./crabler_derive" }
 crabler_derive = "0.1.5"
