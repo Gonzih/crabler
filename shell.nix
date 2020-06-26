@@ -10,5 +10,6 @@ in pkgs.stdenv.mkDerivation rec {
     cargo
     curl
     postgresql_11
+    zlib
   ];
 }
