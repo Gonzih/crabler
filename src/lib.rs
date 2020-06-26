@@ -29,7 +29,6 @@
 //!async fn main() -> Result<()> {
 //!    let scraper = Scraper {};
 //!
-//!    // Run scraper starting from given url and using 20 worker threads
 //!    scraper.run(Opts::new().with_urls(vec!["https://www.rust-lang.org/"])).await
 //!}
 //!```
