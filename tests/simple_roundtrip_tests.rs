@@ -41,7 +41,7 @@ async fn test_roundtrip() {
     };
 
     scraper
-        .run(Opts::new().with_urls(vec!["https://blog.gonzih.me/"]))
+        .run(Opts::new().with_urls(vec!["https://www.rust-lang.org/"]))
         .await
         .unwrap();
 
@@ -49,6 +49,6 @@ async fn test_roundtrip() {
     assert!(saw_links.read().unwrap().len() > 10);
     assert_eq!(
         visited_links.read().unwrap().first().unwrap(),
-        "https://blog.gonzih.me/"
+        "https://www.rust-lang.org/"
     );
 }
