@@ -41,13 +41,14 @@ async fn test_roundtrip() {
     };
 
     scraper
-        .run(Opts::new().with_urls(vec!["http://news.ycombinator.com/"]))
-        .await.unwrap();
+        .run(Opts::new().with_urls(vec!["https://blog.gonzih.me/"]))
+        .await
+        .unwrap();
 
     assert_eq!(visited_links.read().unwrap().len(), 1);
     assert!(saw_links.read().unwrap().len() > 10);
     assert_eq!(
         visited_links.read().unwrap().first().unwrap(),
-        "https://news.ycombinator.com/"
+        "https://blog.gonzih.me/"
     );
 }

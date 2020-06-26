@@ -40,7 +40,7 @@ pub use opts::*;
 use async_std::fs::File;
 use async_std::prelude::*;
 use async_std::sync::RwLock;
-use async_std::sync::{channel, Receiver, Sender};
+use async_std::sync::{channel, Receiver, RecvError, Sender};
 pub use crabquery::{Document, Element};
 use std::collections::HashSet;
 use std::error;
@@ -277,11 +277,12 @@ impl Worker {
         let visited_links = self.visited_links.clone();
 
         loop {
-            let workload = self.workload_rx.recv().await?;
+            let workload = self.workload_rx.recv().await;
             let workoutput_tx = self.workoutput_tx.clone();
 
             match workload {
-                Workload::Navigate(url) => {
+                Err(RecvError) => continue,
+                Ok(Workload::Navigate(url)) => {
                     // println!("Got navigate job for {}", url);
                     let contains = visited_links.read().await.contains(&url.clone());
                     let payload;
@@ -297,7 +298,7 @@ impl Worker {
 
                     workoutput_tx.send(payload).await;
                 }
-                Workload::Download { url, destination } => {
+                Ok(Workload::Download { url, destination }) => {
                     let contains = visited_links.read().await.contains(&url.clone());
                     let payload;
 
