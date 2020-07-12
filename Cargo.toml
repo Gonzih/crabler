@@ -1,6 +1,6 @@
 [package]
 name = "crabler"
-version = "0.1.13"
+version = "0.1.14"
 authors = ["Max Gonzih <gonzih@gmail.com>"]
 edition = "2018"
 description = "Web scraper for Crabs"
@@ -13,7 +13,7 @@ license = "MIT"
 license-file = "LICENSE"
 
 [dependencies]
-crabquery = "0.1.6"
+crabquery = "0.1.7"
 reqwest = { version = "0.10", features = [] }
 async-std = { version = "1.6.1", features = ["unstable"] }
 tokio = { version = "0.2.11", features = ["full"] }
