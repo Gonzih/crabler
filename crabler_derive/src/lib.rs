@@ -65,7 +65,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
                 selector: &str,
                 request: Response,
                 element: Element,
-            ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+            ) -> std::result::Result<(), CrablerError> {
 
                 match selector {
                     #( #matches, )*
@@ -82,7 +82,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
             async fn dispatch_on_response(
                 &mut self,
                 request: Response,
-            ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+            ) -> std::result::Result<(), CrablerError> {
                 #( #responses; )*
 
                 Ok(())
@@ -91,7 +91,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
             async fn run(
                 self,
                 opts: Opts,
-            ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+            ) -> std::result::Result<(), CrablerError> {
                 use crabler::Crabler;
 
                 let mut crabler = Crabler::new(self);

@@ -36,20 +36,20 @@
 mod opts;
 pub use opts::*;
 
+mod errors;
+pub use errors::*;
+
+use async_std::channel::{unbounded, Receiver, RecvError, Sender};
 use async_std::fs::File;
 use async_std::prelude::*;
 use async_std::sync::RwLock;
-use async_std::sync::{channel, Receiver, RecvError, Sender};
 pub use crabquery::{Document, Element};
 use std::collections::HashSet;
-use std::error;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 pub use async_trait::async_trait;
 pub use crabler_derive::WebScraper;
-
-const DEFAULT_BUFFER_SIZE: usize = 10000;
 
 #[async_trait(?Send)]
 pub trait WebScraper {
@@ -63,8 +63,6 @@ pub trait WebScraper {
     fn all_html_selectors(&self) -> Vec<&str>;
     async fn run(self, opts: Opts) -> Result<()>;
 }
-
-pub type Result<T> = std::result::Result<T, Box<dyn error::Error + Send + Sync + 'static>>;
 
 enum Workload {
     Navigate(String),
@@ -121,7 +119,7 @@ struct Channels<T> {
 
 impl<T> Channels<T> {
     fn new() -> Self {
-        let (tx, rx) = channel(DEFAULT_BUFFER_SIZE);
+        let (tx, rx) = unbounded();
 
         Self { tx, rx }
     }
@@ -166,7 +164,7 @@ where
             .workload_ch
             .tx
             .send(Workload::Navigate(url.to_string()))
-            .await)
+            .await?)
     }
 
     /// Run processing loop for the given WebScraper
