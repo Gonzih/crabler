@@ -370,8 +370,6 @@ enum WorkOutput {
 
 async fn workoutput_from_response(mut response: surf::Response, url: String) -> Result<WorkOutput> {
     let status = response.status().into();
-    let mime = response.take_body().mime().clone();
-    debugln!("Extracting body from {} \n\tMIME {:?}\n\tContent-Encoding: {:?}\n\tBody mime {:?}", url, response.content_type(), response.header("Content-Type"), mime);
     let text = response.body_string().await?;
 
     if text.len() == 0 {
