@@ -12,6 +12,9 @@ keywords = ["html", "css" , "scraper", "web"]
 license = "MIT"
 license-file = "LICENSE"
 
+[features]
+debug = []
+
 [dependencies]
 crabquery = "0.1.7"
 surf = "2.1.0"

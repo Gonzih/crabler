@@ -5,23 +5,23 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum CrablerError {
-    #[error("io error")]
+    #[error("io error {0}")]
     Io(#[from] io::Error),
 
-    #[error("failed to recieve workload from async channel")]
+    #[error("failed to recieve workload from async channel {0}")]
     AsyncRecvError(#[from] RecvError),
 
-    #[error("failed to send workload to async channel")]
+    #[error("failed to send workload to async channel: {0}")]
     AsyncSendError(String),
 
-    #[error("surf error happened")]
-    SurfError(String),
+    #[error("surf error {0}: {1}")]
+    SurfError(surf::StatusCode, String),
 }
 
 impl<T: Debug> From<SendError<T>> for CrablerError {
     fn from(err: SendError<T>) -> Self {
         Self::AsyncSendError(format!(
-            "Failed to send payload {:?} to async channel",
+            "{:?}",
             err.into_inner()
         ))
     }
@@ -29,7 +29,7 @@ impl<T: Debug> From<SendError<T>> for CrablerError {
 
 impl From<surf::Error> for CrablerError {
     fn from(err: surf::Error) -> Self {
-        Self::SurfError(format!("Surf error: {}", err))
+        Self::SurfError(err.status(), format!("{:?}", err))
     }
 }
 

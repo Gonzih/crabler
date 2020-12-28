@@ -12,13 +12,13 @@
 //!
 //!impl Scraper {
 //!    async fn response_handler(&self, response: Response) -> Result<()> {
-//!        println!("Status {}", response.status);
+//!        debugln!("Status {}", response.status);
 //!        Ok(())
 //!    }
 //!
 //!    async fn print_handler(&self, response: Response, a: Element) -> Result<()> {
 //!        if let Some(href) = a.attr("href") {
-//!            println!("Found link {} on {}", href, response.url);
+//!            debugln!("Found link {} on {}", href, response.url);
 //!        }
 //!
 //!        Ok(())
@@ -38,6 +38,9 @@ pub use opts::*;
 
 mod errors;
 pub use errors::*;
+
+#[macro_use]
+mod debug;
 
 use async_std::channel::{unbounded, Receiver, RecvError, Sender};
 use async_std::fs::File;
@@ -178,6 +181,7 @@ where
 
             match output {
                 WorkOutput::Markup { text, url, status } => {
+                    debugln!("Fetched markup from: {}", url);
                     let document = Document::from(text);
                     response_url = url.clone();
                     response_status = status;
@@ -204,10 +208,12 @@ where
                     }
                 }
                 WorkOutput::Download(url) => {
+                    debugln!("Downloaded: {}", url);
                     response_url = url;
                     response_status = 200;
                 }
                 WorkOutput::Noop(url) => {
+                    debugln!("Noop: {}", url);
                     response_url = url;
                     response_status = 304;
                 }
@@ -282,7 +288,7 @@ impl Worker {
             match workload {
                 Err(RecvError) => continue,
                 Ok(Workload::Navigate(url)) => {
-                    // println!("Got navigate job for {}", url);
+                    debugln!("Navigating to {}", url);
                     let contains = visited_links.read().await.contains(&url.clone());
                     let payload;
 
@@ -290,6 +296,7 @@ impl Worker {
                         self.visited_links.write().await.insert(url.clone());
 
                         let response = surf::get(&url).await?;
+                        debugln!("Done executing get for {}", url);
                         payload = workoutput_from_response(response, url.clone()).await?;
                     } else {
                         payload = WorkOutput::Noop(url);
@@ -303,6 +310,7 @@ impl Worker {
 
                     if !contains {
                         // need to notify parent about work being done
+                        debugln!("Trying to download {}", url);
                         let response = surf::get(&*url).await?.body_bytes().await?;
                         let mut dest = File::create(destination.clone()).await?;
                         dest.write_all(&response).await?;
@@ -332,6 +340,8 @@ enum WorkOutput {
 
 async fn workoutput_from_response(mut response: surf::Response, url: String) -> Result<WorkOutput> {
     let status = response.status().into();
+    let mime = response.take_body().mime().clone();
+    debugln!("Extracting body from {} \n\tMIME {:?}\n\tContent-Encoding: {:?}\n\tBody mime {:?}", url, response.content_type(), response.header("Content-Type"), mime);
     let text = response.body_string().await?;
 
     Ok(WorkOutput::Markup { status, url, text })
