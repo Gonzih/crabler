@@ -31,7 +31,7 @@ impl Scraper {
     }
 }
 
-// #[test]
+#[tokio::test]
 fn test_roundtrip() {
     let saw_links = Arc::new(RwLock::new(vec![]));
     let visited_links = Arc::new(RwLock::new(vec![]));
@@ -41,14 +41,10 @@ fn test_roundtrip() {
         saw_links: saw_links.clone(),
     };
 
-    let rt = Runtime::new().unwrap();
-
-    rt.block_on(async move {
-        scraper
-            .run(Opts::new().with_urls(vec!["https://www.rust-lang.org/"]))
-            .await
-            .unwrap();
-    });
+    scraper
+        .run(Opts::new().with_urls(vec!["https://www.rust-lang.org/"]))
+        .await
+        .unwrap();
 
     assert_eq!(visited_links.read().unwrap().len(), 1);
     assert!(saw_links.read().unwrap().len() > 10);
