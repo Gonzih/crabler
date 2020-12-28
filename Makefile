@@ -16,7 +16,7 @@ build:
 
 .PHONY: test
 test:
-	$(CARGO) test $(CARGO_ARGS)
+	$(CARGO) test $(CARGO_ARGS) -- --nocapture
 
 .PHONY: shell
 shell:

@@ -3,6 +3,7 @@ extern crate crabler;
 use crabler::*;
 use std::sync::Arc;
 use std::sync::RwLock;
+use tokio::runtime::Runtime;
 
 #[macro_use]
 mod common;
@@ -30,19 +31,19 @@ impl Scraper {
     }
 }
 
-#[tokio::test]
-async fn test_roundtrip() {
-    let saw_links = arc_rw_lock!(vec![]);
-    let visited_links = arc_rw_lock!(vec![]);
+#[test]
+fn test_roundtrip() {
+    let saw_links = Arc::new(RwLock::new(vec![]));
+    let visited_links = Arc::new(RwLock::new(vec![]));
 
     let scraper = Scraper {
         visited_links: visited_links.clone(),
         saw_links: saw_links.clone(),
     };
 
-    scraper
-        .run(Opts::new().with_urls(vec!["https://www.rust-lang.org/"]))
-        .await
+    let mut rt = Runtime::new().unwrap();
+
+    rt.block_on(scraper.run(Opts::new().with_urls(vec!["https://www.rust-lang.org/"])))
         .unwrap();
 
     assert_eq!(visited_links.read().unwrap().len(), 1);

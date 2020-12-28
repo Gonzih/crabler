@@ -1,6 +1,6 @@
 //! Goal of this library is to help crabs with web crawling.
 //!
-//!```rust
+//!```ignore
 //!extern crate crabler;
 //!
 //!use crabler::*;
