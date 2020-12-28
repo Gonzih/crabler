@@ -24,6 +24,8 @@ impl Scraper {
     async fn print_handler(&mut self, _response: Response, a: Element) -> Result<()> {
         if let Some(href) = a.attr("href") {
             self.saw_links.write().unwrap().push(href);
+        } else {
+            println!("Found link without an href");
         }
 
         Ok(())
@@ -46,6 +48,7 @@ async fn test_roundtrip() {
         .unwrap();
 
     assert_eq!(visited_links.read().unwrap().len(), 1);
+    println!("Found {} urls", saw_links.read().unwrap().len());
     assert!(saw_links.read().unwrap().len() > 10);
     assert_eq!(
         visited_links.read().unwrap().first().unwrap(),

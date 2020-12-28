@@ -16,7 +16,6 @@ license-file = "LICENSE"
 debug = []
 
 [dependencies]
-crabquery = "0.1.7"
 surf = "2.1.0"
 async-std = { version = "1.8.0", features = ["unstable"] }
 tokio = { version = "1.0.1", features = ["full"] }
@@ -26,5 +25,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 crabler_derive = "0.1.6"
 # crabler_derive = { path = "./crabler_derive" }
+crabquery = "0.1.8"
+# crabquery = { path = "/home/gnzh/mydev/crabquery" }
 
 [dev-dependencies]

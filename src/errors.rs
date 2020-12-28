@@ -16,6 +16,9 @@ pub enum CrablerError {
 
     #[error("surf error {0}: {1}")]
     SurfError(surf::StatusCode, String),
+
+    #[error("body parsing error: {0}")]
+    BodyParsing(String),
 }
 
 impl<T: Debug> From<SendError<T>> for CrablerError {

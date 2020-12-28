@@ -72,6 +72,7 @@ pub trait WebScraper {
 enum Workload {
     Navigate(String),
     Download { url: String, destination: String },
+    Exit,
 }
 
 pub struct Response {
@@ -99,6 +100,7 @@ impl Response {
     /// Schedule scraper to visit given url,
     /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: String) -> Result<()> {
+        debugln!("Increasing counter by 1");
         self.counter.fetch_add(1, Ordering::SeqCst);
         self.workload_tx.send(Workload::Navigate(url)).await?;
 
@@ -107,6 +109,7 @@ impl Response {
 
     /// Schedule scraper to download file from url into destination path
     pub async fn download_file(&mut self, url: String, destination: String) -> Result<()> {
+        debugln!("Increasing counter by 1");
         self.counter.fetch_add(1, Ordering::SeqCst);
         self.workload_tx
             .send(Workload::Download { url, destination })
@@ -139,6 +142,7 @@ where
     workoutput_ch: Channels<WorkOutput>,
     scraper: T,
     counter: Arc<AtomicUsize>,
+    workers: Vec<tokio::task::JoinHandle<()>>,
 }
 
 impl<T> Crabler<T>
@@ -151,6 +155,7 @@ where
         let workload_ch = Channels::new();
         let workoutput_ch = Channels::new();
         let counter = Arc::new(AtomicUsize::new(0));
+        let workers = vec![];
 
         Crabler {
             visited_links,
@@ -158,12 +163,27 @@ where
             workoutput_ch,
             scraper,
             counter,
+            workers,
         }
+    }
+
+    async fn shutdown(&mut self) -> Result<()> {
+        for _ in self.workers.iter() {
+            self.workload_ch.tx.send(Workload::Exit).await?;
+        }
+
+        self.workload_ch.tx.close();
+        self.workload_ch.rx.close();
+        self.workoutput_ch.tx.close();
+        self.workoutput_ch.rx.close();
+
+        Ok(())
     }
 
     /// Schedule scraper to visit given url,
     /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: &str) -> Result<()> {
+        debugln!("Increasing counter by 1");
         self.counter.fetch_add(1, Ordering::SeqCst);
         Ok(self
             .workload_ch
@@ -230,36 +250,41 @@ where
             );
             self.scraper.dispatch_on_response(response).await?;
 
+            debugln!("Decreasing counter by 1");
             self.counter.fetch_sub(1, Ordering::SeqCst);
 
             debugln!("Done processing work output, counter is at {}", self.counter.load(Ordering::SeqCst));
             if self.counter.load(Ordering::SeqCst) == 0 {
-                break;
+                self.shutdown().await?;
+                return Ok(());
             }
         }
-
-        Ok(())
     }
 
     /// Create and start new worker tasks.
     /// Worker task will automatically exit after scraper instance is freed.
-    pub fn start_worker(&self) {
+    pub fn start_worker(&mut self) {
         let visited_links = self.visited_links.clone();
         let workload_rx = self.workload_ch.rx.clone();
         let workoutput_tx = self.workoutput_ch.tx.clone();
 
         let worker = Worker::new(visited_links, workload_rx, workoutput_tx);
 
-        tokio::spawn(async move {
+        let handle = tokio::task::spawn(async move {
             loop {
                 println!("🐿️ Starting http worker");
 
                 match worker.start().await {
-                    Ok(()) => break,
+                    Ok(()) => {
+                        println!("Shutting down worker");
+                        break;
+                    },
                     Err(e) => println!("❌ Restarting worker: {}", e),
                 }
             }
         });
+
+        self.workers.push(handle);
     }
 }
 
@@ -326,6 +351,7 @@ impl Worker {
 
                     workoutput_tx.send(payload).await?;
                 }
+                Ok(Workload::Exit) => return Ok(()),
             }
         }
     }
@@ -348,5 +374,9 @@ async fn workoutput_from_response(mut response: surf::Response, url: String) -> 
     debugln!("Extracting body from {} \n\tMIME {:?}\n\tContent-Encoding: {:?}\n\tBody mime {:?}", url, response.content_type(), response.header("Content-Type"), mime);
     let text = response.body_string().await?;
 
-    Ok(WorkOutput::Markup { status, url, text })
+    if text.len() == 0 {
+        Err(CrablerError::BodyParsing("text length is 0".to_string()))
+    } else {
+        Ok(WorkOutput::Markup { status, url, text })
+    }
 }
