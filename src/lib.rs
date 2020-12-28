@@ -25,7 +25,7 @@
 //!    }
 //!}
 //!
-//!#[tokio::main]
+//!#[async_std::main]
 //!async fn main() -> Result<()> {
 //!    let scraper = Scraper {};
 //!
@@ -142,7 +142,7 @@ where
     workoutput_ch: Channels<WorkOutput>,
     scraper: T,
     counter: Arc<AtomicUsize>,
-    workers: Vec<tokio::task::JoinHandle<()>>,
+    workers: Vec<async_std::task::JoinHandle<()>>,
 }
 
 impl<T> Crabler<T>
@@ -270,7 +270,7 @@ where
 
         let worker = Worker::new(visited_links, workload_rx, workoutput_tx);
 
-        let handle = tokio::task::spawn(async move {
+        let handle = async_std::task::spawn(async move {
             loop {
                 println!("🐿️ Starting http worker");
 

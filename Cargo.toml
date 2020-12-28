@@ -17,8 +17,7 @@ debug = []
 
 [dependencies]
 surf = "2.1.0"
-async-std = { version = "1.8.0", features = ["unstable"] }
-tokio = { version = "1.0.1", features = ["full"] }
+async-std = { version = "1.8.0", features = ["unstable", "attributes"] }
 futures = "0.3.8"
 async-trait = "0.1.42"
 thiserror = "1.0"

@@ -45,7 +45,7 @@ impl Scraper {
     }
 }
 
-#[tokio::main]
+#[async_std::main]
 async fn main() -> Result<()> {
     let scraper = Scraper {};
 

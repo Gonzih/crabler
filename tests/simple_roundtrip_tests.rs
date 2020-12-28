@@ -32,7 +32,7 @@ impl Scraper {
     }
 }
 
-#[tokio::test]
+#[async_std::test]
 async fn test_roundtrip() {
     let saw_links = Arc::new(RwLock::new(vec![]));
     let visited_links = Arc::new(RwLock::new(vec![]));
