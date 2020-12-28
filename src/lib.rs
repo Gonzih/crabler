@@ -45,6 +45,7 @@ use async_std::prelude::*;
 use async_std::sync::RwLock;
 pub use crabquery::{Document, Element};
 use std::collections::HashSet;
+use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -64,6 +65,7 @@ pub trait WebScraper {
     async fn run(self, opts: Opts) -> Result<()>;
 }
 
+#[derive(Debug)]
 enum Workload {
     Navigate(String),
     Download { url: String, destination: String },
@@ -95,7 +97,7 @@ impl Response {
     /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: String) -> Result<()> {
         self.counter.fetch_add(1, Ordering::SeqCst);
-        self.workload_tx.send(Workload::Navigate(url)).await;
+        self.workload_tx.send(Workload::Navigate(url)).await?;
 
         Ok(())
     }
@@ -105,7 +107,7 @@ impl Response {
         self.counter.fetch_add(1, Ordering::SeqCst);
         self.workload_tx
             .send(Workload::Download { url, destination })
-            .await;
+            .await?;
 
         Ok(())
     }
@@ -293,7 +295,7 @@ impl Worker {
                         payload = WorkOutput::Noop(url);
                     }
 
-                    workoutput_tx.send(payload).await;
+                    workoutput_tx.send(payload).await?;
                 }
                 Ok(Workload::Download { url, destination }) => {
                     let contains = visited_links.read().await.contains(&url.clone());
@@ -310,13 +312,14 @@ impl Worker {
                         payload = WorkOutput::Noop(url);
                     }
 
-                    workoutput_tx.send(payload).await;
+                    workoutput_tx.send(payload).await?;
                 }
             }
         }
     }
 }
 
+#[derive(Debug)]
 enum WorkOutput {
     Markup {
         url: String,

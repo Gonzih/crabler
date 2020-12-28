@@ -1,4 +1,5 @@
 use async_std::channel::{RecvError, SendError};
+use std::fmt::Debug;
 use std::io;
 use thiserror::Error;
 
@@ -11,15 +12,18 @@ pub enum CrablerError {
     Reqwest(#[from] reqwest::Error),
 
     #[error("failed to recieve workload from async channel")]
-    AsyncRecvError(#[from] async_std::channel::RecvError),
+    AsyncRecvError(#[from] RecvError),
 
     #[error("failed to send workload to async channel")]
     AsyncSendError(String),
 }
 
-impl<T> From<SendError<T>> for CrablerError {
+impl<T: Debug> From<SendError<T>> for CrablerError {
     fn from(err: SendError<T>) -> Self {
-        Self::AsyncSendError("failed at it".to_string())
+        Self::AsyncSendError(format!(
+            "Failed to send payload {:?} to async channel",
+            err.into_inner()
+        ))
     }
 }
 

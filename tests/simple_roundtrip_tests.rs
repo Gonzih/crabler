@@ -43,8 +43,12 @@ fn test_roundtrip() {
 
     let rt = Runtime::new().unwrap();
 
-    rt.block_on(scraper.run(Opts::new().with_urls(vec!["https://www.rust-lang.org/"])))
-        .unwrap();
+    rt.block_on(async move {
+        scraper
+            .run(Opts::new().with_urls(vec!["https://www.rust-lang.org/"]))
+            .await
+            .unwrap();
+    });
 
     assert_eq!(visited_links.read().unwrap().len(), 1);
     assert!(saw_links.read().unwrap().len() > 10);
