@@ -3,7 +3,6 @@ extern crate crabler;
 use crabler::*;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::runtime::Runtime;
 
 #[macro_use]
 mod common;
@@ -32,7 +31,7 @@ impl Scraper {
 }
 
 #[tokio::test]
-fn test_roundtrip() {
+async fn test_roundtrip() {
     let saw_links = Arc::new(RwLock::new(vec![]));
     let visited_links = Arc::new(RwLock::new(vec![]));
 
