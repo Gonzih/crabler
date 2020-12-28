@@ -289,8 +289,8 @@ impl Worker {
                     if !contains {
                         self.visited_links.write().await.insert(url.clone());
 
-                        let response = reqwest::get(&url).await?;
-                        payload = workoutput_from_response(response).await?;
+                        let response = surf::get(&url).await?;
+                        payload = workoutput_from_response(response, url.clone()).await?;
                     } else {
                         payload = WorkOutput::Noop(url);
                     }
@@ -303,7 +303,7 @@ impl Worker {
 
                     if !contains {
                         // need to notify parent about work being done
-                        let response = reqwest::get(&*url).await?.bytes().await?;
+                        let response = surf::get(&*url).await?.body_bytes().await?;
                         let mut dest = File::create(destination.clone()).await?;
                         dest.write_all(&response).await?;
 
@@ -330,10 +330,9 @@ enum WorkOutput {
     Noop(String),
 }
 
-async fn workoutput_from_response(response: reqwest::Response) -> Result<WorkOutput> {
-    let url = response.url().to_string();
-    let status = response.status().as_u16();
-    let text = response.text().await?;
+async fn workoutput_from_response(mut response: surf::Response, url: String) -> Result<WorkOutput> {
+    let status = response.status().into();
+    let text = response.body_string().await?;
 
     Ok(WorkOutput::Markup { status, url, text })
 }

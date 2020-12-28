@@ -8,14 +8,14 @@ pub enum CrablerError {
     #[error("io error")]
     Io(#[from] io::Error),
 
-    #[error("reqwest error")]
-    Reqwest(#[from] reqwest::Error),
-
     #[error("failed to recieve workload from async channel")]
     AsyncRecvError(#[from] RecvError),
 
     #[error("failed to send workload to async channel")]
     AsyncSendError(String),
+
+    #[error("surf error happened")]
+    SurfError(String),
 }
 
 impl<T: Debug> From<SendError<T>> for CrablerError {
@@ -24,6 +24,12 @@ impl<T: Debug> From<SendError<T>> for CrablerError {
             "Failed to send payload {:?} to async channel",
             err.into_inner()
         ))
+    }
+}
+
+impl From<surf::Error> for CrablerError {
+    fn from(err: surf::Error) -> Self {
+        Self::SurfError(format!("Surf error: {}", err))
     }
 }
 
