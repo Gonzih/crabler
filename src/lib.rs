@@ -193,8 +193,11 @@ where
                         .map(|s| s.to_string())
                         .collect::<Vec<_>>();
 
+                    debugln!("Applying selectors on: {}", url);
                     for selector in selectors {
+                        debugln!("Searhing for: {}", selector);
                         for el in document.select(selector.as_str()) {
+                            debugln!("Generating response for: {}", selector);
                             let response = Response::new(
                                 status,
                                 url.clone(),
@@ -229,6 +232,7 @@ where
 
             self.counter.fetch_sub(1, Ordering::SeqCst);
 
+            debugln!("Done processing work output, counter is at {}", self.counter.load(Ordering::SeqCst));
             if self.counter.load(Ordering::SeqCst) == 0 {
                 break;
             }
