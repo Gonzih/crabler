@@ -373,7 +373,7 @@ async fn workoutput_from_response(mut response: surf::Response, url: String) -> 
     let text = response.body_string().await?;
 
     if text.len() == 0 {
-        Err(CrablerError::BodyParsing("text length is 0".to_string()))
+        Err(CrablerError::BodyParsing("body length is 0".to_string()))
     } else {
         Ok(WorkOutput::Markup { status, url, text })
     }
