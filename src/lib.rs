@@ -253,6 +253,11 @@ where
                     response_url = url;
                     response_status = 304;
                 }
+                WorkOutput::Error(url, e) => {
+                    error!("Error from {}: {}", url, e);
+                    response_url = url;
+                    response_status = 500;
+                }
             }
 
             let response = Response::new(
@@ -336,7 +341,13 @@ impl Worker {
                         self.visited_links.write().await.insert(url.clone());
 
                         let response = surf::get(&url).await?;
-                        payload = workoutput_from_response(response, url.clone()).await?;
+                        let workload = workoutput_from_response(response, url.clone()).await;
+
+                        if let Err(e) = workload {
+                            payload = WorkOutput::Error(url, e);
+                        } else {
+                            payload = workload?;
+                        }
                     } else {
                         payload = WorkOutput::Noop(url);
                     }
@@ -375,6 +386,7 @@ enum WorkOutput {
     },
     Download(String),
     Noop(String),
+    Error(String, CrablerError),
 }
 
 async fn workoutput_from_response(mut response: surf::Response, url: String) -> Result<WorkOutput> {
