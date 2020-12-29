@@ -14,9 +14,16 @@
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: LICENSE
 
-Structures as asynchronous web crawlers.
 
-Goal of this library is to help crabs with web crawling.
+Asynchronous web scraper engine written in rust.
+
+Features:
+* fully based on `async-std`
+* derive macro based api
+* struct based api
+* stateful scraper (structs can hold state)
+* ability to download files
+* ability to schedule navigation jobs in an async manner
 
 ## Example
 
@@ -27,18 +34,36 @@ use crabler::*;
 
 #[derive(WebScraper)]
 #[on_response(response_handler)]
-#[on_html("a[href]", print_handler)]
+#[on_html("a[href]", walk_handler)]
 struct Scraper {}
 
 impl Scraper {
     async fn response_handler(&self, response: Response) -> Result<()> {
-        println!("Status {}", response.status);
+        if response.url.ends_with(".jpg") && response.status == 200 {
+            println!("Finished downloading {}", response.url);
+        }
         Ok(())
     }
 
-    async fn print_handler(&self, response: Response, a: Element) -> Result<()> {
+    async fn walk_handler(&self, response: Response, a: Element) -> Result<()> {
         if let Some(href) = a.attr("href") {
-            println!("Found link {} on {}", href, response.url);
+            // attempt to download an image
+            if href.ends_with(".jpg") {
+                let p = Path::new("/tmp").join("image.jpg");
+                let destination = p.to_string_lossy().to_string();
+
+                if !p.exists() {
+                    println!("Downloading {}", destination);
+                    // schedule crawler to download file to some destination
+                    // downloading will happen in the background, await here is just to wait for job queue
+                    response.download_file(href, destination).await?;
+                } else {
+                    println!("Skipping exist file {}", destination);
+                }
+            } else {
+              // or schedule crawler to navigate to a given url
+              response.navigate(href).await?;
+            };
         }
 
         Ok(())
@@ -50,7 +75,7 @@ async fn main() -> Result<()> {
     let scraper = Scraper {};
 
     // Run scraper starting from given url and using 20 worker threads
-    scraper.run(Opts::new().with_urls(vec!["https://news.ycombinator.com/"]).with_threads(20)).await
+    scraper.run(Opts::new().with_urls(vec!["https://www.rust-lang.org/"]).with_threads(20)).await
 }
 ```
 
