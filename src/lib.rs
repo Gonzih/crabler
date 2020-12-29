@@ -77,7 +77,7 @@ pub trait WebScraper {
 }
 
 #[derive(Debug)]
-enum Workload {
+enum WorkInput {
     Navigate(String),
     Download { url: String, destination: String },
     Exit,
@@ -86,7 +86,7 @@ enum Workload {
 pub struct Response {
     pub url: String,
     pub status: u16,
-    workload_tx: Sender<Workload>,
+    workinput_tx: Sender<WorkInput>,
     counter: Arc<AtomicUsize>,
 }
 
@@ -94,13 +94,13 @@ impl Response {
     fn new(
         status: u16,
         url: String,
-        workload_tx: Sender<Workload>,
+        workinput_tx: Sender<WorkInput>,
         counter: Arc<AtomicUsize>,
     ) -> Self {
         Response {
             status,
             url,
-            workload_tx,
+            workinput_tx,
             counter,
         }
     }
@@ -110,7 +110,7 @@ impl Response {
     pub async fn navigate(&mut self, url: String) -> Result<()> {
         debug!("Increasing counter by 1");
         self.counter.fetch_add(1, Ordering::SeqCst);
-        self.workload_tx.send(Workload::Navigate(url)).await?;
+        self.workinput_tx.send(WorkInput::Navigate(url)).await?;
 
         Ok(())
     }
@@ -119,8 +119,8 @@ impl Response {
     pub async fn download_file(&mut self, url: String, destination: String) -> Result<()> {
         debug!("Increasing counter by 1");
         self.counter.fetch_add(1, Ordering::SeqCst);
-        self.workload_tx
-            .send(Workload::Download { url, destination })
+        self.workinput_tx
+            .send(WorkInput::Download { url, destination })
             .await?;
 
         Ok(())
@@ -146,7 +146,7 @@ where
     T: WebScraper,
 {
     visited_links: Arc<RwLock<HashSet<String>>>,
-    workload_ch: Channels<Workload>,
+    workinput_ch: Channels<WorkInput>,
     workoutput_ch: Channels<WorkOutput>,
     scraper: T,
     counter: Arc<AtomicUsize>,
@@ -160,14 +160,14 @@ where
     /// Create new WebScraper out of given scraper struct
     pub fn new(scraper: T) -> Self {
         let visited_links = Arc::new(RwLock::new(HashSet::new()));
-        let workload_ch = Channels::new();
+        let workinput_ch = Channels::new();
         let workoutput_ch = Channels::new();
         let counter = Arc::new(AtomicUsize::new(0));
         let workers = vec![];
 
         Crabler {
             visited_links,
-            workload_ch,
+            workinput_ch,
             workoutput_ch,
             scraper,
             counter,
@@ -177,11 +177,11 @@ where
 
     async fn shutdown(&mut self) -> Result<()> {
         for _ in self.workers.iter() {
-            self.workload_ch.tx.send(Workload::Exit).await?;
+            self.workinput_ch.tx.send(WorkInput::Exit).await?;
         }
 
-        self.workload_ch.tx.close();
-        self.workload_ch.rx.close();
+        self.workinput_ch.tx.close();
+        self.workinput_ch.rx.close();
         self.workoutput_ch.tx.close();
         self.workoutput_ch.rx.close();
 
@@ -194,9 +194,9 @@ where
         debug!("Increasing counter by 1");
         self.counter.fetch_add(1, Ordering::SeqCst);
         Ok(self
-            .workload_ch
+            .workinput_ch
             .tx
-            .send(Workload::Navigate(url.to_string()))
+            .send(WorkInput::Navigate(url.to_string()))
             .await?)
     }
 
@@ -234,7 +234,7 @@ where
                             let response = Response::new(
                                 status,
                                 url.clone(),
-                                self.workload_ch.tx.clone(),
+                                self.workinput_ch.tx.clone(),
                                 self.counter.clone(),
                             );
                             self.scraper
@@ -258,12 +258,17 @@ where
                     response_url = url;
                     response_status = 500;
                 }
+                WorkOutput::Exit => {
+                    error!("Recieved exit output");
+                    response_url = "".to_string();
+                    response_status = 500;
+                }
             }
 
             let response = Response::new(
                 response_status,
                 response_url,
-                self.workload_ch.tx.clone(),
+                self.workinput_ch.tx.clone(),
                 self.counter.clone(),
             );
             self.scraper.dispatch_on_response(response).await?;
@@ -282,10 +287,10 @@ where
     /// Worker task will automatically exit after scraper instance is freed.
     pub fn start_worker(&mut self) {
         let visited_links = self.visited_links.clone();
-        let workload_rx = self.workload_ch.rx.clone();
+        let workinput_rx = self.workinput_ch.rx.clone();
         let workoutput_tx = self.workoutput_ch.tx.clone();
 
-        let worker = Worker::new(visited_links, workload_rx, workoutput_tx);
+        let worker = Worker::new(visited_links, workinput_rx, workoutput_tx);
 
         let handle = async_std::task::spawn(async move {
             loop {
@@ -307,72 +312,91 @@ where
 
 struct Worker {
     visited_links: Arc<RwLock<HashSet<String>>>,
-    workload_rx: Receiver<Workload>,
+    workinput_rx: Receiver<WorkInput>,
     workoutput_tx: Sender<WorkOutput>,
 }
 
 impl Worker {
     fn new(
         visited_links: Arc<RwLock<HashSet<String>>>,
-        workload_rx: Receiver<Workload>,
+        workinput_rx: Receiver<WorkInput>,
         workoutput_tx: Sender<WorkOutput>,
     ) -> Self {
         Worker {
             visited_links,
-            workload_rx,
+            workinput_rx,
             workoutput_tx,
         }
     }
 
     async fn start(&self) -> Result<()> {
-        let visited_links = self.visited_links.clone();
+        let workoutput_tx = self.workoutput_tx.clone();
 
         loop {
-            let workload = self.workload_rx.recv().await;
-            let workoutput_tx = self.workoutput_tx.clone();
-
-            match workload {
-                Err(RecvError) => continue,
-                Ok(Workload::Navigate(url)) => {
-                    let contains = visited_links.read().await.contains(&url.clone());
-                    let payload;
-
-                    if !contains {
-                        self.visited_links.write().await.insert(url.clone());
-
-                        let response = surf::get(&url).await?;
-                        let workload = workoutput_from_response(response, url.clone()).await;
-
-                        if let Err(e) = workload {
-                            payload = WorkOutput::Error(url, e);
-                        } else {
-                            payload = workload?;
-                        }
-                    } else {
-                        payload = WorkOutput::Noop(url);
-                    }
-
-                    workoutput_tx.send(payload).await?;
-                }
-                Ok(Workload::Download { url, destination }) => {
-                    let contains = visited_links.read().await.contains(&url.clone());
-                    let payload;
-
-                    if !contains {
-                        // need to notify parent about work being done
-                        let response = surf::get(&*url).await?.body_bytes().await?;
-                        let mut dest = File::create(destination.clone()).await?;
-                        dest.write_all(&response).await?;
-
-                        payload = WorkOutput::Download(destination);
-                    } else {
-                        payload = WorkOutput::Noop(url);
-                    }
-
-                    workoutput_tx.send(payload).await?;
-                }
-                Ok(Workload::Exit) => return Ok(()),
+            let workinput = self.workinput_rx.recv().await;
+            if let Err(RecvError) = workinput {
+                continue;
             }
+
+            let workinput = workinput?;
+            let payload = self.process_message(workinput).await;
+
+            match payload {
+                Ok(WorkOutput::Exit) => return Ok(()),
+                _ => workoutput_tx.send(payload?).await?,
+            }
+        }
+    }
+
+    async fn process_message(&self, workinput: WorkInput) -> Result<WorkOutput> {
+        match workinput {
+            WorkInput::Navigate(url) => {
+                let workoutput = self.navigate(url.clone()).await;
+
+                if let Err(e) = workoutput {
+                    Ok(WorkOutput::Error(url, e))
+                } else {
+                    workoutput
+                }
+            }
+            WorkInput::Download { url, destination } => {
+                let workoutput = self.download(url.clone(), destination).await;
+
+                if let Err(e) = workoutput {
+                    Ok(WorkOutput::Error(url, e))
+                } else {
+                    workoutput
+                }
+            }
+            WorkInput::Exit => Ok(WorkOutput::Exit),
+        }
+    }
+
+    async fn navigate(&self, url: String) -> Result<WorkOutput> {
+        let contains = self.visited_links.read().await.contains(&url.clone());
+
+        if !contains {
+            self.visited_links.write().await.insert(url.clone());
+            let response = surf::get(&url).await?;
+
+            workoutput_from_response(response, url.clone()).await
+        } else {
+            Ok(WorkOutput::Noop(url))
+        }
+    }
+
+    async fn download(&self, url: String, destination: String) -> Result<WorkOutput> {
+        let contains = self.visited_links.read().await.contains(&url.clone());
+
+        if !contains {
+            // need to notify parent about work being done
+            let response = surf::get(&*url).await?.body_bytes().await?;
+            let mut dest = File::create(destination.clone()).await?;
+            dest.write_all(&response).await?;
+
+            Ok(WorkOutput::Download(destination))
+        } else {
+            Ok(WorkOutput::Noop(url))
         }
     }
 }
@@ -387,6 +411,7 @@ enum WorkOutput {
     Download(String),
     Noop(String),
     Error(String, CrablerError),
+    Exit,
 }
 
 async fn workoutput_from_response(mut response: surf::Response, url: String) -> Result<WorkOutput> {
