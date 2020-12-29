@@ -53,3 +53,7 @@ async fn main() -> Result<()> {
     scraper.run(Opts::new().with_urls(vec!["https://news.ycombinator.com/"]).with_threads(20)).await
 }
 ```
+
+## Sample project
+
+https://github.com/Gonzih/apod-nasa-scraper-rs/
