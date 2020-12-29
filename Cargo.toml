@@ -1,6 +1,6 @@
 [package]
 name = "crabler"
-version = "0.1.18"
+version = "0.1.19"
 authors = ["Max Gonzih <gonzih@gmail.com>"]
 edition = "2018"
 description = "Web scraper for Crabs"
