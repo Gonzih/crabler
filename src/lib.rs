@@ -39,9 +39,6 @@ pub use opts::*;
 mod errors;
 pub use errors::*;
 
-#[macro_use]
-mod debug;
-
 use async_std::channel::{unbounded, Receiver, RecvError, Sender};
 use async_std::fs::File;
 use async_std::prelude::*;
@@ -51,9 +48,20 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use log::{info, warn, error, debug};
 
 pub use async_trait::async_trait;
 pub use crabler_derive::WebScraper;
+
+#[cfg(feature = "debug")]
+fn enable_logging() {
+    femme::with_level(femme::LevelFilter::Info);
+}
+
+#[cfg(not(feature = "debug"))]
+fn enable_logging() {
+    femme::with_level(femme::LevelFilter::Warn);
+}
 
 #[async_trait(?Send)]
 pub trait WebScraper {
@@ -100,7 +108,7 @@ impl Response {
     /// Schedule scraper to visit given url,
     /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: String) -> Result<()> {
-        debugln!("Increasing counter by 1");
+        debug!("Increasing counter by 1");
         self.counter.fetch_add(1, Ordering::SeqCst);
         self.workload_tx.send(Workload::Navigate(url)).await?;
 
@@ -109,7 +117,7 @@ impl Response {
 
     /// Schedule scraper to download file from url into destination path
     pub async fn download_file(&mut self, url: String, destination: String) -> Result<()> {
-        debugln!("Increasing counter by 1");
+        debug!("Increasing counter by 1");
         self.counter.fetch_add(1, Ordering::SeqCst);
         self.workload_tx
             .send(Workload::Download { url, destination })
@@ -183,7 +191,7 @@ where
     /// Schedule scraper to visit given url,
     /// this will be executed on one of worker tasks
     pub async fn navigate(&mut self, url: &str) -> Result<()> {
-        debugln!("Increasing counter by 1");
+        debug!("Increasing counter by 1");
         self.counter.fetch_add(1, Ordering::SeqCst);
         Ok(self
             .workload_ch
@@ -194,6 +202,14 @@ where
 
     /// Run processing loop for the given WebScraper
     pub async fn run(&mut self) -> Result<()> {
+        enable_logging();
+
+        let ret = self.event_loop().await;
+        self.shutdown().await?;
+        ret
+    }
+
+    async fn event_loop(&mut self) -> Result<()> {
         loop {
             let output = self.workoutput_ch.rx.recv().await?;
             let response_url;
@@ -201,7 +217,7 @@ where
 
             match output {
                 WorkOutput::Markup { text, url, status } => {
-                    debugln!("Fetched markup from: {}", url);
+                    info!("Fetched markup from: {}", url);
                     let document = Document::from(text);
                     response_url = url.clone();
                     response_status = status;
@@ -213,11 +229,11 @@ where
                         .map(|s| s.to_string())
                         .collect::<Vec<_>>();
 
-                    debugln!("Applying selectors on: {}", url);
+                    info!("Applying selectors on: {}", url);
                     for selector in selectors {
-                        debugln!("Searhing for: {}", selector);
+                        debug!("Searhing for: {}", selector);
                         for el in document.select(selector.as_str()) {
-                            debugln!("Generating response for: {}", selector);
+                            debug!("Generating response for: {}", selector);
                             let response = Response::new(
                                 status,
                                 url.clone(),
@@ -231,12 +247,12 @@ where
                     }
                 }
                 WorkOutput::Download(url) => {
-                    debugln!("Downloaded: {}", url);
+                    info!("Downloaded: {}", url);
                     response_url = url;
                     response_status = 200;
                 }
                 WorkOutput::Noop(url) => {
-                    debugln!("Noop: {}", url);
+                    info!("Noop: {}", url);
                     response_url = url;
                     response_status = 304;
                 }
@@ -250,12 +266,11 @@ where
             );
             self.scraper.dispatch_on_response(response).await?;
 
-            debugln!("Decreasing counter by 1");
+            debug!("Decreasing counter by 1");
             self.counter.fetch_sub(1, Ordering::SeqCst);
 
-            debugln!("Done processing work output, counter is at {}", self.counter.load(Ordering::SeqCst));
+            debug!("Done processing work output, counter is at {}", self.counter.load(Ordering::SeqCst));
             if self.counter.load(Ordering::SeqCst) == 0 {
-                self.shutdown().await?;
                 return Ok(());
             }
         }
@@ -272,14 +287,14 @@ where
 
         let handle = async_std::task::spawn(async move {
             loop {
-                println!("🐿️ Starting http worker");
+                info!("🐿️ Starting http worker");
 
                 match worker.start().await {
                     Ok(()) => {
-                        println!("Shutting down worker");
+                        info!("Shutting down worker");
                         break;
                     },
-                    Err(e) => println!("❌ Restarting worker: {}", e),
+                    Err(e) => warn!("❌ Restarting worker: {}", e),
                 }
             }
         });
@@ -317,7 +332,7 @@ impl Worker {
             match workload {
                 Err(RecvError) => continue,
                 Ok(Workload::Navigate(url)) => {
-                    debugln!("Navigating to {}", url);
+                    info!("Navigating to {}", url);
                     let contains = visited_links.read().await.contains(&url.clone());
                     let payload;
 
@@ -325,7 +340,7 @@ impl Worker {
                         self.visited_links.write().await.insert(url.clone());
 
                         let response = surf::get(&url).await?;
-                        debugln!("Done executing get for {}", url);
+                        info!("Done executing get for {}", url);
                         payload = workoutput_from_response(response, url.clone()).await?;
                     } else {
                         payload = WorkOutput::Noop(url);
@@ -339,7 +354,7 @@ impl Worker {
 
                     if !contains {
                         // need to notify parent about work being done
-                        debugln!("Trying to download {}", url);
+                        info!("Trying to download {}", url);
                         let response = surf::get(&*url).await?.body_bytes().await?;
                         let mut dest = File::create(destination.clone()).await?;
                         dest.write_all(&response).await?;
@@ -373,8 +388,8 @@ async fn workoutput_from_response(mut response: surf::Response, url: String) -> 
     let text = response.body_string().await?;
 
     if text.len() == 0 {
-        Err(CrablerError::BodyParsing("body length is 0".to_string()))
-    } else {
-        Ok(WorkOutput::Markup { status, url, text })
+        error!("body length is 0")
     }
+
+    Ok(WorkOutput::Markup { status, url, text })
 }
