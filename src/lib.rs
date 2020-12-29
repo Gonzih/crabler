@@ -1,6 +1,6 @@
 //! Goal of this library is to help crabs with web crawling.
 //!
-//!```ignore
+//!```rust
 //!extern crate crabler;
 //!
 //!use crabler::*;
@@ -12,13 +12,13 @@
 //!
 //!impl Scraper {
 //!    async fn response_handler(&self, response: Response) -> Result<()> {
-//!        debugln!("Status {}", response.status);
+//!        println!("Status {}", response.status);
 //!        Ok(())
 //!    }
 //!
 //!    async fn print_handler(&self, response: Response, a: Element) -> Result<()> {
 //!        if let Some(href) = a.attr("href") {
-//!            debugln!("Found link {} on {}", href, response.url);
+//!            println!("Found link {} on {}", href, response.url);
 //!        }
 //!
 //!        Ok(())
