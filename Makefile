@@ -23,7 +23,7 @@ shell:
 	nix-shell shell.nix
 
 rust-setup:
-	rustup default nightly
+	rustup default stable
 
 publish:
 	nix-shell shell.nix --run 'cargo publish'
