@@ -56,4 +56,4 @@ async fn main() -> Result<()> {
 
 ## Sample project
 
-https://github.com/Gonzih/apod-nasa-scraper-rs/
+[Gonzih/apod-nasa-scraper-rs](https://github.com/Gonzih/apod-nasa-scraper-rs/)
