@@ -44,11 +44,11 @@ use async_std::fs::File;
 use async_std::prelude::*;
 use async_std::sync::RwLock;
 pub use crabquery::{Document, Element};
+use log::{debug, error, info, warn};
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use log::{info, warn, error, debug};
 
 pub use async_trait::async_trait;
 pub use crabler_derive::WebScraper;
@@ -86,6 +86,7 @@ enum WorkInput {
 pub struct Response {
     pub url: String,
     pub status: u16,
+    pub download_destination: Option<String>,
     workinput_tx: Sender<WorkInput>,
     counter: Arc<AtomicUsize>,
 }
@@ -94,12 +95,14 @@ impl Response {
     fn new(
         status: u16,
         url: String,
+        download_destination: Option<String>,
         workinput_tx: Sender<WorkInput>,
         counter: Arc<AtomicUsize>,
     ) -> Self {
         Response {
             status,
             url,
+            download_destination,
             workinput_tx,
             counter,
         }
@@ -214,6 +217,7 @@ where
             let output = self.workoutput_ch.rx.recv().await?;
             let response_url;
             let response_status;
+            let mut response_destination = None;
 
             match output {
                 WorkOutput::Markup { text, url, status } => {
@@ -234,6 +238,7 @@ where
                             let response = Response::new(
                                 status,
                                 url.clone(),
+                                None,
                                 self.workinput_ch.tx.clone(),
                                 self.counter.clone(),
                             );
@@ -243,9 +248,10 @@ where
                         }
                     }
                 }
-                WorkOutput::Download(url) => {
-                    info!("Downloaded: {}", url);
+                WorkOutput::Download { url, destination } => {
+                    info!("Downloaded: {} -> {}", url, destination);
                     response_url = url;
+                    response_destination = Some(destination);
                     response_status = 200;
                 }
                 WorkOutput::Noop(url) => {
@@ -268,6 +274,7 @@ where
             let response = Response::new(
                 response_status,
                 response_url,
+                response_destination,
                 self.workinput_ch.tx.clone(),
                 self.counter.clone(),
             );
@@ -276,7 +283,10 @@ where
             debug!("Decreasing counter by 1");
             self.counter.fetch_sub(1, Ordering::SeqCst);
 
-            debug!("Done processing work output, counter is at {}", self.counter.load(Ordering::SeqCst));
+            debug!(
+                "Done processing work output, counter is at {}",
+                self.counter.load(Ordering::SeqCst)
+            );
             if self.counter.load(Ordering::SeqCst) == 0 {
                 return Ok(());
             }
@@ -300,7 +310,7 @@ where
                     Ok(()) => {
                         info!("Shutting down worker");
                         break;
-                    },
+                    }
                     Err(e) => warn!("❌ Restarting worker: {}", e),
                 }
             }
@@ -394,7 +404,7 @@ impl Worker {
             let mut dest = File::create(destination.clone()).await?;
             dest.write_all(&response).await?;
 
-            Ok(WorkOutput::Download(destination))
+            Ok(WorkOutput::Download { url, destination })
         } else {
             Ok(WorkOutput::Noop(url))
         }
@@ -408,7 +418,10 @@ enum WorkOutput {
         text: String,
         status: u16,
     },
-    Download(String),
+    Download {
+        url: String,
+        destination: String,
+    },
     Noop(String),
     Error(String, CrablerError),
     Exit,

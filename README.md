@@ -40,7 +40,7 @@ struct Scraper {}
 impl Scraper {
     async fn response_handler(&self, response: Response) -> Result<()> {
         if response.url.ends_with(".jpg") && response.status == 200 {
-            println!("Finished downloading {}", response.url);
+            println!("Finished downloading {} -> {}", response.url, response.download_destination);
         }
         Ok(())
     }
