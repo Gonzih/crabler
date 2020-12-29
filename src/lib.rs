@@ -229,11 +229,8 @@ where
                         .map(|s| s.to_string())
                         .collect::<Vec<_>>();
 
-                    info!("Applying selectors on: {}", url);
                     for selector in selectors {
-                        debug!("Searhing for: {}", selector);
                         for el in document.select(selector.as_str()) {
-                            debug!("Generating response for: {}", selector);
                             let response = Response::new(
                                 status,
                                 url.clone(),
@@ -332,7 +329,6 @@ impl Worker {
             match workload {
                 Err(RecvError) => continue,
                 Ok(Workload::Navigate(url)) => {
-                    info!("Navigating to {}", url);
                     let contains = visited_links.read().await.contains(&url.clone());
                     let payload;
 
@@ -340,7 +336,6 @@ impl Worker {
                         self.visited_links.write().await.insert(url.clone());
 
                         let response = surf::get(&url).await?;
-                        info!("Done executing get for {}", url);
                         payload = workoutput_from_response(response, url.clone()).await?;
                     } else {
                         payload = WorkOutput::Noop(url);
@@ -354,7 +349,6 @@ impl Worker {
 
                     if !contains {
                         // need to notify parent about work being done
-                        info!("Trying to download {}", url);
                         let response = surf::get(&*url).await?.body_bytes().await?;
                         let mut dest = File::create(destination.clone()).await?;
                         dest.write_all(&response).await?;
