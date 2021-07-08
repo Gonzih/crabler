@@ -58,6 +58,10 @@ fn enable_logging() {
     femme::with_level(femme::LevelFilter::Info);
 }
 
+#[cfg(not(feature = "debug"))]
+fn enable_logging() {
+}
+
 #[async_trait(?Send)]
 pub trait WebScraper {
     async fn dispatch_on_html(
