@@ -7,6 +7,7 @@ pub struct Opts {
     pub urls: Urls,
     // pub proxies: Proxies,
     pub threads: Threads,
+    pub follow_redirects: bool,
 }
 
 impl Opts {
@@ -15,6 +16,7 @@ impl Opts {
             urls: vec![],
             // proxies: vec![],
             threads: 1,
+            follow_redirects: true,
         }
     }
 
@@ -35,6 +37,13 @@ impl Opts {
     pub fn with_threads(self, input: usize) -> Self {
         let mut new = self;
         new.threads = input;
+
+        new
+    }
+
+    pub fn with_follow_redirects(self, input: bool) -> Self {
+        let mut new = self;
+        new.follow_redirects = input;
 
         new
     }
