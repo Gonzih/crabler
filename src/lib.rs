@@ -60,8 +60,7 @@ fn enable_logging() {
 }
 
 #[cfg(not(feature = "debug"))]
-fn enable_logging() {
-}
+fn enable_logging() {}
 
 #[async_trait(?Send)]
 pub trait WebScraper {
@@ -302,7 +301,12 @@ where
         let workinput_rx = self.workinput_ch.rx.clone();
         let workoutput_tx = self.workoutput_ch.tx.clone();
 
-        let worker = Worker::new(visited_links, workinput_rx, workoutput_tx, self.follow_redirects);
+        let worker = Worker::new(
+            visited_links,
+            workinput_rx,
+            workoutput_tx,
+            self.follow_redirects,
+        );
 
         let handle = async_std::task::spawn(async move {
             loop {
@@ -408,7 +412,7 @@ impl Worker {
                         };
                         return self.navigate(location).await;
                     }
-                    _ => ()
+                    _ => (),
                 }
             }
 
