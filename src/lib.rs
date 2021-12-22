@@ -39,6 +39,7 @@ pub use opts::*;
 mod errors;
 pub use errors::*;
 
+use async_recursion::async_recursion;
 use async_std::channel::{unbounded, Receiver, RecvError, Sender};
 use async_std::fs::File;
 use async_std::prelude::*;
@@ -153,6 +154,7 @@ where
     scraper: T,
     counter: Arc<AtomicUsize>,
     workers: Vec<async_std::task::JoinHandle<()>>,
+    follow_redirects: bool,
 }
 
 impl<T> Crabler<T>
@@ -160,7 +162,7 @@ where
     T: WebScraper,
 {
     /// Create new WebScraper out of given scraper struct
-    pub fn new(scraper: T) -> Self {
+    pub fn new(scraper: T, opts: &Opts) -> Self {
         let visited_links = Arc::new(RwLock::new(HashSet::new()));
         let workinput_ch = Channels::new();
         let workoutput_ch = Channels::new();
@@ -174,6 +176,7 @@ where
             scraper,
             counter,
             workers,
+            follow_redirects: opts.follow_redirects,
         }
     }
 
@@ -264,7 +267,7 @@ where
                     response_status = 500;
                 }
                 WorkOutput::Exit => {
-                    error!("Recieved exit output");
+                    error!("Received exit output");
                     response_url = "".to_string();
                     response_status = 500;
                 }
@@ -299,7 +302,7 @@ where
         let workinput_rx = self.workinput_ch.rx.clone();
         let workoutput_tx = self.workoutput_ch.tx.clone();
 
-        let worker = Worker::new(visited_links, workinput_rx, workoutput_tx);
+        let worker = Worker::new(visited_links, workinput_rx, workoutput_tx, self.follow_redirects);
 
         let handle = async_std::task::spawn(async move {
             loop {
@@ -323,6 +326,7 @@ struct Worker {
     visited_links: Arc<RwLock<HashSet<String>>>,
     workinput_rx: Receiver<WorkInput>,
     workoutput_tx: Sender<WorkOutput>,
+    follow_redirects: bool,
 }
 
 impl Worker {
@@ -330,11 +334,13 @@ impl Worker {
         visited_links: Arc<RwLock<HashSet<String>>>,
         workinput_rx: Receiver<WorkInput>,
         workoutput_tx: Sender<WorkOutput>,
+        follow_redirects: bool,
     ) -> Self {
         Worker {
             visited_links,
             workinput_rx,
             workoutput_tx,
+            follow_redirects,
         }
     }
 
@@ -381,12 +387,30 @@ impl Worker {
         }
     }
 
+    #[async_recursion]
     async fn navigate(&self, url: String) -> Result<WorkOutput> {
         let contains = self.visited_links.read().await.contains(&url.clone());
 
         if !contains {
             self.visited_links.write().await.insert(url.clone());
             let response = surf::get(&url).await?;
+
+            if self.follow_redirects {
+                use surf::StatusCode::*;
+                match response.status() {
+                    MovedPermanently | Found => {
+                        // Convert relative URL to an absolute one for the redirect location
+                        let location = response.header("Location").unwrap()[0].as_str().to_string();
+                        let location = if location.starts_with("http") {
+                            location
+                        } else {
+                            url + &location.to_string()
+                        };
+                        return self.navigate(location).await;
+                    }
+                    _ => ()
+                }
+            }
 
             workoutput_from_response(response, url.clone()).await
         } else {

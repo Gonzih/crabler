@@ -94,7 +94,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
             ) -> std::result::Result<(), CrablerError> {
                 use crabler::Crabler;
 
-                let mut crabler = Crabler::new(self);
+                let mut crabler = Crabler::new(self, &opts);
 
                 for url in &opts.urls {
                     crabler.navigate(url).await?;
