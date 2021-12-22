@@ -267,7 +267,7 @@ where
                     response_status = 500;
                 }
                 WorkOutput::Exit => {
-                    error!("Recieved exit output");
+                    error!("Received exit output");
                     response_url = "".to_string();
                     response_status = 500;
                 }
