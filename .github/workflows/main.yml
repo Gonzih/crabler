@@ -5,11 +5,13 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: nixos/nix
     steps:
     - uses: actions/checkout@v2
-    - name: Nix Channel Update
-      run: nix-channel --update
-    - name: CI
-      run: nix-shell shell.nix --run 'make rust-setup test'
+    - uses: cachix/install-nix-action@v16
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+    - uses: workflow/nix-shell-action@v3
+      with:
+        packages: stdenv,glib,pkgconfig,rustup,cargo,curl,gnumake,zlib
+        script: |
+          make rust-setup test
