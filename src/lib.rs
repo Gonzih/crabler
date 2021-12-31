@@ -82,6 +82,7 @@ enum WorkInput {
     Exit,
 }
 
+#[derive(Debug)]
 pub struct Response {
     pub url: String,
     pub status: u16,
