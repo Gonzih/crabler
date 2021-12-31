@@ -27,10 +27,13 @@ Features:
 
 ## Example
 
-```rust
+```rust,no_run
 extern crate crabler;
 
+use std::path::Path;
+
 use crabler::*;
+use surf::Url;
 
 #[derive(WebScraper)]
 #[on_response(response_handler)]
@@ -39,30 +42,35 @@ struct Scraper {}
 
 impl Scraper {
     async fn response_handler(&self, response: Response) -> Result<()> {
-        if response.url.ends_with(".jpg") && response.status == 200 {
-            println!("Finished downloading {} -> {}", response.url, response.download_destination);
+        if response.url.ends_with(".png") && response.status == 200 {
+            println!("Finished downloading {} -> {:?}", response.url, response.download_destination);
         }
         Ok(())
     }
 
-    async fn walk_handler(&self, response: Response, a: Element) -> Result<()> {
+    async fn walk_handler(&self, mut response: Response, a: Element) -> Result<()> {
         if let Some(href) = a.attr("href") {
-            // attempt to download an image
-            if href.ends_with(".jpg") {
-                let p = Path::new("/tmp").join("image.jpg");
+            // Create absolute URL
+            let url = Url::parse(&href)
+                .unwrap_or_else(|_| Url::parse(&response.url).unwrap().join(&href).unwrap());
+
+            // Attempt to download an image
+            if href.ends_with(".png") {
+                let image_name = url.path_segments().unwrap().last().unwrap();
+                let p = Path::new("/tmp").join(image_name);
                 let destination = p.to_string_lossy().to_string();
 
                 if !p.exists() {
                     println!("Downloading {}", destination);
-                    // schedule crawler to download file to some destination
+                    // Schedule crawler to download file to some destination
                     // downloading will happen in the background, await here is just to wait for job queue
-                    response.download_file(href, destination).await?;
+                    response.download_file(url.to_string(), destination).await?;
                 } else {
-                    println!("Skipping exist file {}", destination);
+                    println!("Skipping existing file {}", destination);
                 }
             } else {
-              // or schedule crawler to navigate to a given url
-              response.navigate(href).await?;
+              // Or schedule crawler to navigate to a given url
+              response.navigate(url.to_string()).await?;
             };
         }
 
