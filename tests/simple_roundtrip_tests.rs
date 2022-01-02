@@ -4,9 +4,6 @@ use crabler::*;
 use std::sync::Arc;
 use std::sync::RwLock;
 
-#[macro_use]
-mod common;
-
 #[derive(WebScraper)]
 #[on_response(response_handler)]
 #[on_html("a[href]", print_handler)]
