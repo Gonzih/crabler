@@ -251,13 +251,13 @@ where
                     }
                 }
                 WorkOutput::Download { url, destination } => {
-                    info!("Downloaded: {} -> {}", url, destination);
+                    debug!("Downloaded: {} -> {}", url, destination);
                     response_url = url;
                     response_destination = Some(destination);
                     response_status = 200;
                 }
                 WorkOutput::Noop(url) => {
-                    info!("Noop: {}", url);
+                    debug!("Noop: {}", url);
                     response_url = url;
                     response_status = 304;
                 }
