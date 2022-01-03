@@ -11,7 +11,7 @@ documentation = "https://docs.rs/crabler"
 readme = "README.md"
 keywords = ["html", "css" , "scraper", "web"]
 license = "MIT"
-license-file = "LICENSE"
+# license-file = "LICENSE"
 
 [features]
 debug = []
