@@ -18,12 +18,12 @@ debug = []
 
 [dependencies]
 async-recursion = "0.3.2"
-surf = "2.1.0"
-async-std = { version = "1.8.0", features = ["unstable", "attributes"] }
-futures = "0.3.8"
-async-trait = "0.1.42"
+surf = "2.3.2"
+async-std = { version = "1.9.0", features = ["unstable", "attributes"] }
+futures = "0.3.18"
+async-trait = "0.1.52"
 thiserror = "1.0"
-log = { version = "0.4.11", features = ["kv_unstable"] }
+log = { version = "0.4.14", features = ["kv_unstable"] }
 femme = "2.1.1"
 crabler_derive = "0.1.7"
 # crabler_derive = { path = "./crabler_derive" }
