@@ -285,11 +285,11 @@ where
             debug!("Decreasing counter by 1");
             self.counter.fetch_sub(1, Ordering::SeqCst);
 
-            debug!(
-                "Done processing work output, counter is at {}",
-                self.counter.load(Ordering::SeqCst)
-            );
-            if self.counter.load(Ordering::SeqCst) == 0 {
+            let cur_count = self.counter.load(Ordering::SeqCst);
+            debug!("Done processing work output, counter is at {}", cur_count);
+            debug!("Queue len: {}", self.workoutput_ch.rx.len());
+
+            if cur_count == 0 {
                 return Ok(());
             }
         }
@@ -417,7 +417,7 @@ impl Worker {
                 }
             }
 
-            workoutput_from_response(response, url.clone()).await
+            WorkOutput::try_from_response(response, url.clone()).await
         } else {
             Ok(WorkOutput::Noop(url))
         }
@@ -455,13 +455,15 @@ enum WorkOutput {
     Exit,
 }
 
-async fn workoutput_from_response(mut response: surf::Response, url: String) -> Result<WorkOutput> {
-    let status = response.status().into();
-    let text = response.body_string().await?;
+impl WorkOutput {
+    async fn try_from_response(mut response: surf::Response, url: String) -> Result<Self> {
+        let status = response.status().into();
+        let text = response.body_string().await?;
 
-    if text.len() == 0 {
-        error!("body length is 0")
+        if text.len() == 0 {
+            error!("body length is 0")
+        }
+
+        Ok(WorkOutput::Markup { status, url, text })
     }
-
-    Ok(WorkOutput::Markup { status, url, text })
 }
