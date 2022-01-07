@@ -39,7 +39,6 @@ pub use opts::*;
 mod errors;
 pub use errors::*;
 
-use async_recursion::async_recursion;
 use async_std::channel::{unbounded, Receiver, RecvError, Sender};
 use async_std::fs::File;
 use async_std::prelude::*;
@@ -154,7 +153,7 @@ where
     scraper: T,
     counter: Arc<AtomicUsize>,
     workers: Vec<async_std::task::JoinHandle<()>>,
-    follow_redirects: bool,
+    surf_client: surf::Client,
 }
 
 impl<T> Crabler<T>
@@ -168,6 +167,11 @@ where
         let workoutput_ch = Channels::new();
         let counter = Arc::new(AtomicUsize::new(0));
         let workers = vec![];
+        let surf_client = if opts.follow_redirects {
+            surf::client().with(surf::middleware::Redirect::default())
+        } else {
+            surf::client()
+        };
 
         Crabler {
             visited_links,
@@ -176,7 +180,7 @@ where
             scraper,
             counter,
             workers,
-            follow_redirects: opts.follow_redirects,
+            surf_client,
         }
     }
 
@@ -301,12 +305,13 @@ where
         let visited_links = self.visited_links.clone();
         let workinput_rx = self.workinput_ch.rx.clone();
         let workoutput_tx = self.workoutput_ch.tx.clone();
+        let surf_client = self.surf_client.clone();
 
         let worker = Worker::new(
             visited_links,
             workinput_rx,
             workoutput_tx,
-            self.follow_redirects,
+            surf_client,
         );
 
         let handle = async_std::task::spawn(async move {
@@ -331,7 +336,7 @@ struct Worker {
     visited_links: Arc<RwLock<HashSet<String>>>,
     workinput_rx: Receiver<WorkInput>,
     workoutput_tx: Sender<WorkOutput>,
-    follow_redirects: bool,
+    surf_client: surf::Client,
 }
 
 impl Worker {
@@ -339,13 +344,13 @@ impl Worker {
         visited_links: Arc<RwLock<HashSet<String>>>,
         workinput_rx: Receiver<WorkInput>,
         workoutput_tx: Sender<WorkOutput>,
-        follow_redirects: bool,
+        surf_client: surf::Client,
     ) -> Self {
         Worker {
             visited_links,
             workinput_rx,
             workoutput_tx,
-            follow_redirects,
+            surf_client,
         }
     }
 
@@ -392,30 +397,12 @@ impl Worker {
         }
     }
 
-    #[async_recursion]
     async fn navigate(&self, url: String) -> Result<WorkOutput> {
         let contains = self.visited_links.read().await.contains(&url.clone());
 
         if !contains {
             self.visited_links.write().await.insert(url.clone());
-            let response = surf::get(&url).await?;
-
-            if self.follow_redirects {
-                use surf::StatusCode::*;
-                match response.status() {
-                    MovedPermanently | Found => {
-                        // Convert relative URL to an absolute one for the redirect location
-                        let location = response.header("Location").unwrap()[0].as_str().to_string();
-                        let location = if location.starts_with("http") {
-                            location
-                        } else {
-                            url + &location.to_string()
-                        };
-                        return self.navigate(location).await;
-                    }
-                    _ => (),
-                }
-            }
+            let response = self.surf_client.get(&url).await?;
 
             WorkOutput::try_from_response(response, url.clone()).await
         } else {
@@ -428,7 +415,7 @@ impl Worker {
 
         if !contains {
             // need to notify parent about work being done
-            let response = surf::get(&*url).await?.body_bytes().await?;
+            let response = self.surf_client.get(&*url).await?.body_bytes().await?;
             let mut dest = File::create(destination.clone()).await?;
             dest.write_all(&response).await?;
 
