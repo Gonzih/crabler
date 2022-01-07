@@ -6,13 +6,15 @@ use proc_macro_error::*;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
 
-#[proc_macro_derive(WebScraper, attributes(on_html, on_response))]
+#[proc_macro_derive(WebScraper, attributes(on_html, on_page, on_response))]
 #[proc_macro_error]
 /// Macro to derive WebScraper trait on to a given struct.
 /// Supported options:
+/// * `#[on_page(method_name)]` - will bind given method to a successful page load with the
+///   contents of the page
 /// * `#[on_html("css selector", method_name)]` - will bind given css selector to a method. When page
-/// is loaded this method will be invoked for all elements that match given selector.
-/// * `#[on_response(method_name)]` - will bind given method to a successful page load action.
+///   is loaded this method will be invoked for all elements that match given selector.
+/// * `#[on_response(method_name)]` - will bind given method to an HTTP response
 pub fn web_scraper_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = parse_macro_input!(input as DeriveInput);
 
@@ -27,6 +29,7 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
 
     let name = &ast.ident;
 
+    let mut pages = vec![];
     let mut selectors = vec![];
     let mut matches = vec![];
     let mut responses = vec![];
@@ -35,6 +38,12 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
         let meta = attr.parse_meta();
 
         match meta {
+            Ok(Meta::List(MetaList { path, nested, .. }))
+                if path.segments[0].ident == "on_page" =>
+            {
+                let page = handle_on_page_attr(nested);
+                pages.push(page);
+            }
             Ok(Meta::List(MetaList { path, nested, .. }))
                 if path.segments[0].ident == "on_html" =>
             {
@@ -60,6 +69,15 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
     let gen = quote! {
         #[async_trait(?Send)]
         impl WebScraper for #name {
+            async fn dispatch_on_page(
+                &mut self,
+                page: String,
+            ) -> std::result::Result<(), CrablerError> {
+                #( #pages; )*
+
+                Ok(())
+            }
+
             async fn dispatch_on_html(
                 &mut self,
                 selector: &str,
@@ -112,6 +130,24 @@ fn impl_web_scraper(ast: &syn::DeriveInput) -> TokenStream {
     gen.into()
 }
 
+fn handle_on_page_attr(
+    nested: syn::punctuated::Punctuated<syn::NestedMeta, syn::token::Comma>,
+) -> proc_macro2::TokenStream {
+    use syn::*;
+
+    let l = nested.len();
+    if l < 1 {
+        abort_call_site!("Not enough arguments provided to on_page attribute: {}", l);
+    }
+
+    let f = match &nested[0] {
+        NestedMeta::Meta(Meta::Path(Path { segments, .. })) => &segments[0].ident,
+        _ => abort_call_site!("Can't find on_page method"),
+    };
+
+    quote! { self.#f(page).await? }
+}
+
 fn handle_on_html_attr(
     nested: syn::punctuated::Punctuated<syn::NestedMeta, syn::token::Comma>,
 ) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
@@ -119,17 +155,17 @@ fn handle_on_html_attr(
 
     let l = nested.len();
     if l < 2 {
-        abort_call_site!("Not enough argument provided to on_html attribute: {}", l);
+        abort_call_site!("Not enough arguments provided to on_html attribute: {}", l);
     }
 
     let token = match &nested[0] {
         NestedMeta::Lit(Lit::Str(lit_str)) => lit_str,
-        _ => abort_call_site!("Cant find on_html selector"),
+        _ => abort_call_site!("Can't find on_html selector"),
     };
 
     let f = match &nested[1] {
         NestedMeta::Meta(Meta::Path(Path { segments, .. })) => &segments[0].ident,
-        _ => abort_call_site!("Cant find on_html selector"),
+        _ => abort_call_site!("Can't find on_html method"),
     };
 
     let selector = quote! { #token };
@@ -146,14 +182,14 @@ fn handle_on_response_attr(
     let l = nested.len();
     if l < 1 {
         abort_call_site!(
-            "Not enough argument provided to on_response attribute: {}",
+            "Not enough arguments provided to on_response attribute: {}",
             l
         );
     }
 
     let f = match &nested[0] {
         NestedMeta::Meta(Meta::Path(Path { segments, .. })) => &segments[0].ident,
-        _ => abort_call_site!("Cant find on_response method"),
+        _ => abort_call_site!("Can't find on_response method"),
     };
 
     quote! { self.#f(request).await? }

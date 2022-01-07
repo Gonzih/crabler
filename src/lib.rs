@@ -63,6 +63,7 @@ fn enable_logging() {}
 
 #[async_trait(?Send)]
 pub trait WebScraper {
+    async fn dispatch_on_page(&mut self, page: String) -> Result<()>;
     async fn dispatch_on_html(
         &mut self,
         selector: &str,
@@ -228,6 +229,9 @@ where
             match output {
                 WorkOutput::Markup { text, url, status } => {
                     info!("Fetched markup from: {}", url);
+                    self.scraper
+                        .dispatch_on_page(text.clone())
+                        .await?;
                     let document = Document::from(text);
                     response_url = url.clone();
                     response_status = status;
