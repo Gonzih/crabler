@@ -24,7 +24,7 @@ async-trait = "0.1.52"
 thiserror = "1.0"
 log = { version = "0.4.14", features = ["kv_unstable"] }
 femme = "2.1.1"
-crabler_derive = "0.1.7"
+crabler_derive = "0.1.8"
 # crabler_derive = { path = "./crabler_derive" }
 crabquery = "0.1.8"
 # crabquery = { path = "/home/gnzh/mydev/crabquery" }
