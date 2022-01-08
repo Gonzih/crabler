@@ -449,8 +449,8 @@ impl WorkOutput {
         let status = response.status().into();
         let text = response.body_string().await?;
 
-        if text.len() == 0 {
-            error!("body length is 0")
+        if text.is_empty() {
+            error!("body is empty")
         }
 
         Ok(WorkOutput::Markup { status, url, text })
