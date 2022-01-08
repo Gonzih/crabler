@@ -229,9 +229,7 @@ where
             match output {
                 WorkOutput::Markup { text, url, status } => {
                     info!("Fetched markup from: {}", url);
-                    self.scraper
-                        .dispatch_on_page(text.clone())
-                        .await?;
+                    self.scraper.dispatch_on_page(text.clone()).await?;
                     let document = Document::from(text);
                     response_url = url.clone();
                     response_status = status;
