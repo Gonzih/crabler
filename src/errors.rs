@@ -23,10 +23,7 @@ pub enum CrablerError {
 
 impl<T: Debug> From<SendError<T>> for CrablerError {
     fn from(err: SendError<T>) -> Self {
-        Self::AsyncSendError(format!(
-            "{:?}",
-            err.into_inner()
-        ))
+        Self::AsyncSendError(format!("{:?}", err.into_inner()))
     }
 }
 
