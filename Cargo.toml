@@ -34,3 +34,4 @@ skeptic = "0.13"
 
 [dev-dependencies]
 skeptic = "0.13"
+mockito = "1"
