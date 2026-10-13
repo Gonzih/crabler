@@ -30,8 +30,8 @@ crabquery = "0.1.9"
 # crabquery = { path = "/home/gnzh/mydev/crabquery" }
 
 [build-dependencies]
-skeptic = "0.13"
+skeptic = "0.14"
 
 [dev-dependencies]
-skeptic = "0.13"
+skeptic = "0.14"
 mockito = "1"
